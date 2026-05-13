@@ -1,5 +1,6 @@
 import cats.effect.IO
 import cats.effect.IOLocal
+import contextStorage.IOStorage
 import logSink.LogSink
 
 trait BridgeLogger {

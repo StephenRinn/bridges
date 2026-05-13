@@ -1,5 +1,6 @@
-import cats.effect.IO
-import cats.effect.IOLocal
+package contextStorage
+
+import cats.effect.{IO, IOLocal}
 
 class ContextOperations(local: IOLocal[IOStorage]) {
   def setCorrelation(id: String): IO[Unit] = { local.update(_.copy(correlationId = id)) }

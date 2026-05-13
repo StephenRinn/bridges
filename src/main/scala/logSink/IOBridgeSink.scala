@@ -1,6 +1,8 @@
 package logSink
 
 import cats.effect.{IO, IOLocal}
+import contextStorage.IOStorage
+
 
 class IOBridgeSink(ioStorage: IOLocal[IOStorage]) extends LogSink {
 

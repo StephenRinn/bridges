@@ -1,3 +1,5 @@
+package contextStorage
+
 final case class IOStorage(
     requestId: String,
     correlationId: String,
