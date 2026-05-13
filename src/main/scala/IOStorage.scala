@@ -1,0 +1,12 @@
+final case class IOStorage(
+    requestId: String,
+    correlationId: String,
+    values: Map[String, Any],
+    startTime: Option[Long],
+    endTime: Option[Long],
+)
+
+object IOStorage {
+  val empty: IOStorage =
+    IOStorage("","", Map[String, Any](), None, None)
+}

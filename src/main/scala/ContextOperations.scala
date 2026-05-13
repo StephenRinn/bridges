@@ -1,0 +1,31 @@
+import cats.effect.IO
+import cats.effect.IOLocal
+
+class ContextOperations(local: IOLocal[IOStorage]) {
+  def setCorrelation(id: String): IO[Unit] = { local.update(_.copy(correlationId = id)) }
+
+  def updateValues(key: String, value: Any): IO[Unit] = {
+    local.modify{ storage =>
+      val updated = storage.values + (key -> value)
+      (storage.copy(values = updated), ())
+    }
+  }
+
+  def markStart(startTime: Long): IO[Unit] = {
+    local.update(_.copy(startTime = Some(startTime)))
+  }
+  def markStart: IO[Unit] = {
+    local.update(_.copy(startTime = Some(System.currentTimeMillis())))
+  }
+
+  def markEnd(endTime: Long): IO[Unit] = {
+    local.update(_.copy(endTime = Some(endTime)))
+  }
+  def markEnd: IO[Unit] = {
+    local.update(_.copy(endTime = Some(System.currentTimeMillis())))
+  }
+
+  def get: IO[IOStorage] = {
+    local.get
+  }
+}
