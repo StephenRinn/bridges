@@ -1,0 +1,85 @@
+# Fiber-Local Logging Context (Cats Effect)
+
+A lightweight logging + request-context library built on **Cats Effect `IO` + `IOLocal`**, designed for server applications that need:
+
+* per-request correlation IDs
+* fiber-safe contextual logging
+* zero thread-local usage (no MDC dependency)
+* pluggable logging backends (SLF4J, Datadog, etc.)
+* clean separation between business logic and logging infrastructure
+
+---
+
+## Overview
+
+This library provides a **fiber-local request context** that automatically follows execution across async boundaries in Cats Effect.
+
+Each request runs in its own fiber with its own isolated context:
+
+* correlation ID
+* request ID
+* arbitrary metadata
+* timing information
+
+The context is accessed implicitly via `IOLocal`, not passed manually through every function.
+
+---
+
+## Key Concepts
+
+### 1. `IOLocal[IOStorage]`
+
+Each request/fiber owns its own context:
+
+```scala
+final case class IOStorage(
+  requestId: String,
+  correlationId: String,
+  values: Map[String, Any],
+  startTime: Option[Long],
+  endTime: Option[Long]
+)
+```
+
+---
+
+### 2. Logger abstraction
+
+Application code depends only on:
+
+```scala
+trait LogSink {
+  def info(msg: String): IO[Unit]
+  def warn(msg: String): IO[Unit]
+  def error(msg: String): IO[Unit]
+}
+```
+
+---
+
+### 3. Logger implementation
+
+`BridgeLogger` combines:
+
+* `IOLocal` (context)
+* `LogSink` (output backend)
+
+```scala
+final class BridgeLogger(
+  local: IOLocal[IOStorage],
+  sink: LogSink
+) extends Logger
+```
+
+---
+
+### 4. LogSink (pluggable backend)
+
+```scala
+trait LogSink {
+  def info(line: String): IO[Unit]
+  def warn(line: String): IO[Unit]
+  def error(line: String): IO[Unit]
+}
+```
+
