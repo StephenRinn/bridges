@@ -12,6 +12,7 @@ lazy val root = (project in file("."))
       "org.typelevel" %% "cats-effect" % "3.7.0",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6",
       "ch.qos.logback" % "logback-classic" % "1.5.32",
-      "io.circe" %% "circe-core" % "0.14.15"
+      "io.circe" %% "circe-core" % "0.14.15",
+      "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test
     )
   )
