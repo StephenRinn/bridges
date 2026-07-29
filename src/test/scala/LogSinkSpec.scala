@@ -1,6 +1,7 @@
 import cats.effect.{IO, IOLocal}
 import cats.implicits.catsSyntaxParallelTraverse_
 import contextStorage.IOStorage
+import logger.{BridgeLogger, BridgeLoggerImpl}
 import munit.CatsEffectSuite
 import util.{LogEntry, TestLogSink}
 
