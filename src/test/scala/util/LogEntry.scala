@@ -1,6 +1,7 @@
 package util
 
 import cats.effect.{IO, Ref}
+import logEvent.LogEvent
 import logSink.LogSink
 
 case class LogEntry (
@@ -12,15 +13,27 @@ trait LogSi
 
 class TestLogSink(ref: Ref[IO, Vector[LogEntry]]) extends LogSink {
 
-  override def info(msg: String): IO[Unit] = {
-    ref.update(_ :+ LogEntry("INFO:", msg))
+  override def info(event: IO[LogEvent]): IO[Unit] = {
+    for{
+      eventT <- event
+      _ <- ref.update(_ :+ LogEntry("INFO:", eventT.toString))
+    } yield()
   }
 
-  override def warn(msg: String): IO[Unit] =
-    ref.update(_ :+ LogEntry("WARN:", msg))
+  override def warn(event: IO[LogEvent]): IO[Unit] =
+    for{
+      eventT <- event
+      _ <- ref.update(_ :+ LogEntry("WARN:", eventT.toString))
+    } yield()
 
-  override def error(msg: String): IO[Unit] =
-    ref.update(_ :+ LogEntry("ERROR:", msg))
+
+  override def error(event: IO[LogEvent]): IO[Unit] =
+    for{
+      eventT <- event
+      _ <- ref.update(_ :+ LogEntry("ERROR:", eventT.toString))
+    } yield()
+
+
 
   def messages: IO[Vector[LogEntry]] = ref.get
 }

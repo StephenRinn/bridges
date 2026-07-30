@@ -1,26 +1,58 @@
 package logSink
 
 import cats.effect.IO
-import io.circe.Json
+import io.circe.{Encoder, Json}
 import io.circe.syntax.EncoderOps
+import logEvent.LogEvent
+import JsonHelpers._
 
 class JSONSink extends LogSink{
-  private def toLoggingJson(severity: String, msg: String): String = {
+  private def toLoggingJson(logEvent: LogEvent): String = {
+    val ctx = logEvent.context
+    val duration = (ctx.endTime, ctx.startTime) match {
+      case (Some(end), Some(start)) => end - start
+      case _ => -1
+    }
+
     Json.obj(
-      "severity" -> severity.asJson,
-      "message" -> msg.asJson,
+      "timestamp" -> logEvent.timestamp.asJson,
+      "cid" -> ctx.correlationId.asJson,
+      "rid" -> ctx.requestId.asJson,
+      "duration" -> duration.asJson,
+      "level" -> logEvent.level.toString.asJson,
+      "message" -> logEvent.message.asJson,
+      "error" -> logEvent.throwable.orNull.asJson
     ).noSpaces
   }
 
-  override def info(msg: String): IO[Unit] = {
-    IO.blocking(println(toLoggingJson("info", msg)))
+  private def printJson(event: IO[LogEvent]): IO[Unit] = {
+    for{
+      log <- event
+    } yield
+    IO.blocking(println(toLoggingJson(log)))
   }
 
-  override def warn(msg: String): IO[Unit] = {
-    IO.blocking(println(toLoggingJson("warn", msg)))
+  override def info(event: IO[LogEvent]): IO[Unit] = {
+    printJson(event)
   }
 
-  override def error(msg: String): IO[Unit] = {
-    IO.blocking(println(toLoggingJson("error", msg)))
+  override def warn(event: IO[LogEvent]): IO[Unit] = {
+    printJson(event)
+  }
+
+  override def error(event: IO[LogEvent]): IO[Unit] = {
+    printJson(event)
+  }
+}
+
+object JsonHelpers {
+  implicit val throwableEncoder: Encoder[Throwable] = {
+    Encoder.instance{ t =>
+      Json.obj(
+        "message" -> t.getMessage.asJson,
+        "type" -> t.getClass.getName.asJson,
+        "stacktrace" -> t.getStackTrace.map(s => s.toString.asJson).asJson
+      )
+    }
   }
 }

@@ -1,9 +1,10 @@
 package logSink
 
 import cats.effect.IO
+import logEvent.LogEvent
 
 trait LogSink{
-  def info(msg: String): IO[Unit]
-  def warn(msg: String): IO[Unit]
-  def error(msg: String): IO[Unit]
+  def info(event: IO[LogEvent]): IO[Unit]
+  def warn(event: IO[LogEvent]): IO[Unit]
+  def error(event: IO[LogEvent]): IO[Unit]
 }

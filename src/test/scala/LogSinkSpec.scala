@@ -20,9 +20,11 @@ class LogSinkSpec extends CatsEffectSuite {
       _ <- logger.info("hello")
 
       logs <- sink.messages
+
+      storageEnd <- storage.get
     } yield {
       assert(logs.size == 1)
-      assert(logs.head.message.contains("abc"))
+      assert(storageEnd.correlationId == "abc")
     }
   }
   test("updates are applied"){
@@ -111,13 +113,13 @@ class LogSinkSpec extends CatsEffectSuite {
 
           assert(
             logs.forall(
-              _.message.contains(s"[cid=corr-$id]")
+              _.message.contains(s"corr-$id")
             )
           )
 
           assert(
             logs.forall(
-              _.message.contains(s"[rid=req-$id]")
+              _.message.contains(s"req-$id")
             )
           )
       }
@@ -167,13 +169,13 @@ class LogSinkSpec extends CatsEffectSuite {
 
       (1 to 5).foreach { id =>
         val requestLogs =
-          logs.filter(_.message.contains(s"[rid=req-$id]"))
+          logs.filter(_.message.contains(s"req-$id"))
 
         assertEquals(requestLogs.size, 10)
 
         assert(
           requestLogs.forall(
-            _.message.contains(s"[cid=corr-$id]")
+            _.message.contains(s"corr-$id")
           )
         )
       }
@@ -229,7 +231,7 @@ class LogSinkSpec extends CatsEffectSuite {
       (1 to RequestCount).foreach { id =>
 
         val requestLogs =
-          logs.filter(_.message.contains(s"[rid=req-$id]"))
+          logs.filter(_.message.contains(s"req-$id,"))
 
         assertEquals(
           requestLogs.size,
@@ -239,7 +241,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
         assert(
           requestLogs.forall(
-            _.message.contains(s"[cid=corr-$id]")
+            _.message.contains(s"corr-$id")
           ),
           s"Correlation id mismatch for request $id"
         )

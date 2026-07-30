@@ -4,7 +4,7 @@ import cats.effect.kernel.Outcome
 import cats.effect.{Clock, IO, IOLocal}
 import contextStorage.{ContextOperations, IOStorage}
 import java.util.UUID
-import logEvent.LogLevel
+import logEvent.{LogEvent, LogLevel}
 import logEvent.LogLevel.{Debug, Info, Warn}
 import logSink.LogSink
 
@@ -23,65 +23,55 @@ trait BridgeLogger {
 final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) extends BridgeLogger {
   private val ctxOp: ContextOperations = new ContextOperations(ioStorage)
 
-  private def format(storage: IOStorage, msg: String, level: LogLevel = Debug): String = {
-    val values =
-      if (storage.values.isEmpty) "-"
-      else storage.values.map { case (k, v) => s"$k=$v" }.mkString(", ")
+  private def toEvent(message: String, level: LogLevel, e: Option[Throwable] = None): IO[LogEvent] = {
+    for {
+      now <- Clock[IO].realTime
+      storage <- ioStorage.get
+      event = LogEvent(level = level, message = message, timestamp = now.toMillis, context = storage, throwable = e)
+    } yield event
 
-    val duration = (storage.endTime, storage.startTime) match {
-      case (Some(end), Some(start)) => Some(end - start)
-      case _ => None
-    }
-    s"""[timestamp=${System.currentTimeMillis()}] [level=$level] [cid=${storage.correlationId}]
-       | [rid=${storage.requestId}] [duration=$duration] [values=$values] $msg""".stripMargin
   }
 
   override def info(msg: String): IO[Unit] = {
     ioStorage.get.flatMap { storage =>
-      sink.info(format(storage, msg, Info))
+      sink.info(toEvent(msg, Info))
     }
   }
 
   override def warn(msg: String): IO[Unit] = {
-    ioStorage.get.flatMap { storage =>
-      sink.warn(format(storage, msg, Warn))
-    }
+      sink.warn(toEvent(msg, Warn))
   }
 
   override def error(msg: String): IO[Unit] = {
-    ioStorage.get.flatMap { storage =>
-      sink.error(format(storage, msg, LogLevel.Error))
-    }
+      sink.error(toEvent(msg, LogLevel.Error))
   }
 
   override def error(msg: String, e: Throwable): IO[Unit] = {
-    ioStorage.get.flatMap { storage =>
-      sink.error(format(storage, msg, LogLevel.Error) + e.toString)
-    }
+      sink.error(toEvent(msg, LogLevel.Error, Some(e)))
   }
 
   override def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A] =
     for {
       _ <- ctxOp.setRequest(UUID.randomUUID().toString)
       _ <- ctxOp.setCorrelation(correlationId)
-      start <- Clock[IO].monotonic
+      start <- Clock[IO].realTime
       _ <- ctxOp.markStart(start.toMillis)
       result <- fa.guaranteeCase {
         case Outcome.Succeeded(_) =>
           for {
-            end <- Clock[IO].monotonic
+            end <- Clock[IO].realTime
             _ <- ctxOp.markEnd(end.toMillis)
             _ <- info("Request Completed")
           } yield ()
         case Outcome.Errored(e) =>
           for {
-            end <- Clock[IO].monotonic
+            end <- Clock[IO].realTime
             _ <- ctxOp.markEnd(end.toMillis)
             _ <- error("RequestFailed", e)
           } yield ()
         case Outcome.Canceled() =>
           for {
-            end <- Clock[IO].monotonic
+            end <- Clock[IO].realTime
             _ <- ctxOp.markEnd(end.toMillis)
             _ <- warn("Request cancelled")
           } yield ()
