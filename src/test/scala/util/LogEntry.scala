@@ -13,6 +13,21 @@ trait LogSi
 
 class TestLogSink(ref: Ref[IO, Vector[LogEntry]]) extends LogSink {
 
+
+  override def trace(event: IO[LogEvent]): IO[Unit] = {
+    for{
+      eventT <- event
+      _ <- ref.update(_ :+ LogEntry("TRACE:", eventT.toString))
+    } yield()
+  }
+
+  override def debug(event: IO[LogEvent]): IO[Unit] = {
+    for{
+      eventT <- event
+      _ <- ref.update(_ :+ LogEntry("DEBUG:", eventT.toString))
+    } yield()
+  }
+
   override def info(event: IO[LogEvent]): IO[Unit] = {
     for{
       eventT <- event

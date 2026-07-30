@@ -25,8 +25,24 @@ class SLF4JSink extends LogSink with LazyLogging {
   }
 
 
+  override def trace(event: IO[LogEvent]): IO[Unit] = {
+    for {
+      log <- event
+      formattedLog = format(log)
+    } yield
+      IO.blocking(logger.trace(formattedLog))
+  }
+
+  override def debug(event: IO[LogEvent]): IO[Unit] = {
+    for {
+      log <- event
+      formattedLog = format(log)
+    } yield
+      IO.blocking(logger.debug(formattedLog))
+  }
+
   override def info(event: IO[LogEvent]): IO[Unit] = {
-    for{
+    for {
       log <- event
       formattedLog = format(log)
     } yield

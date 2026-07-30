@@ -35,6 +35,14 @@ class IOBridgeSink(ioStorage: IOLocal[IOStorage]) extends LogSink {
       }
   }
 
+  override def trace(event: IO[LogEvent]): IO[Unit] = {
+    logIO(event)
+  }
+
+  override def debug(event: IO[LogEvent]): IO[Unit] = {
+    logIO(event)
+  }
+
   override def info(event: IO[LogEvent]): IO[Unit] = {
     logIO(event)
   }

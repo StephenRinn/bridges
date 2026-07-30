@@ -32,6 +32,14 @@ class JSONSink extends LogSink{
     IO.blocking(println(toLoggingJson(log)))
   }
 
+  override def trace(event: IO[LogEvent]): IO[Unit] = {
+    printJson(event)
+  }
+
+  override def debug(event: IO[LogEvent]): IO[Unit] = {
+    printJson(event)
+  }
+
   override def info(event: IO[LogEvent]): IO[Unit] = {
     printJson(event)
   }

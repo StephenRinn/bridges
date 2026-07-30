@@ -5,10 +5,12 @@ import cats.effect.{Clock, IO, IOLocal}
 import contextStorage.{ContextOperations, IOStorage}
 import java.util.UUID
 import logEvent.{LogEvent, LogLevel}
-import logEvent.LogLevel.{Debug, Info, Warn}
+import logEvent.LogLevel._
 import logSink.LogSink
 
 trait BridgeLogger {
+  def trace(msg: String): IO[Unit]
+  def debug(msg: String): IO[Unit]
   def info(msg: String): IO[Unit]
   def warn(msg: String): IO[Unit]
   def error(msg: String): IO[Unit]
@@ -17,7 +19,6 @@ trait BridgeLogger {
   def updateValues(key: String, value: String): IO[Unit]
   def setCorrelationId(id: String): IO[Unit]
   def setRequestId(id: String): IO[Unit]
-  def getIOStorage: IO[IOStorage]
 }
 
 final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) extends BridgeLogger {
@@ -29,13 +30,16 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
       storage <- ioStorage.get
       event = LogEvent(level = level, message = message, timestamp = now.toMillis, context = storage, throwable = e)
     } yield event
-
   }
 
+  override def trace(msg: String): IO[Unit] =
+    sink.trace(toEvent(msg, Trace))
+
+  override def debug(msg: String): IO[Unit] =
+    sink.debug(toEvent(msg, Trace))
+
   override def info(msg: String): IO[Unit] = {
-    ioStorage.get.flatMap { storage =>
       sink.info(toEvent(msg, Info))
-    }
   }
 
   override def warn(msg: String): IO[Unit] = {
@@ -84,5 +88,5 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
 
   override def setRequestId(id: String): IO[Unit] = ctxOp.setRequest(id)
 
-  override def getIOStorage: IO[IOStorage] = ctxOp.get
+  private def getIOStorage: IO[IOStorage] = ctxOp.get
 }
