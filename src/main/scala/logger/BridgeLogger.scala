@@ -14,6 +14,10 @@ trait BridgeLogger {
   def error(msg: String): IO[Unit]
   def error(msg: String, e: Throwable): IO[Unit]
   def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A]
+  def updateValues(key: String, value: String): IO[Unit]
+  def setCorrelationId(id: String): IO[Unit]
+  def setRequestId(id: String): IO[Unit]
+  def getIOStorage: IO[IOStorage]
 }
 
 final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) extends BridgeLogger {
@@ -83,4 +87,12 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
           } yield ()
       }
     } yield result
+
+  override def updateValues(key: String, value: String): IO[Unit] = ctxOp.updateValues(key, value)
+
+  override def setCorrelationId(id: String): IO[Unit] = ctxOp.setCorrelation(id)
+
+  override def setRequestId(id: String): IO[Unit] = ctxOp.setRequest(id)
+
+  override def getIOStorage: IO[IOStorage] = ctxOp.get
 }
