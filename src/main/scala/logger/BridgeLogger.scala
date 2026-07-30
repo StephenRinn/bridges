@@ -13,6 +13,7 @@ trait BridgeLogger {
   def warn(msg: String): IO[Unit]
   def error(msg: String): IO[Unit]
   def error(msg: String, e: Throwable): IO[Unit]
+  def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A]
 }
 
 final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) extends BridgeLogger {
@@ -49,20 +50,20 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     }
   }
 
-  def error(msg: String, e: Throwable): IO[Unit] = {
+  override def error(msg: String, e: Throwable): IO[Unit] = {
     ioStorage.get.flatMap { storage =>
       sink.error(format(storage, msg, LogLevel.Error) + e.toString)
     }
   }
 
-  def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A] =
+  override def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A] =
     for {
       _ <- ctxOp.setRequest(UUID.randomUUID().toString)
       _ <- ctxOp.setCorrelation(correlationId)
       start <- Clock[IO].monotonic
       _ <- ctxOp.markStart(start.toMillis)
       result <- fa.guaranteeCase {
-        case Outcome.Succeeded(fa) =>
+        case Outcome.Succeeded(_) =>
           for {
             end <- Clock[IO].monotonic
             _ <- ctxOp.markEnd(end.toMillis)
