@@ -1,7 +1,8 @@
 package logger
 
-import cats.effect.{IO, IOLocal}
-import contextStorage.IOStorage
+import cats.effect.kernel.Outcome
+import cats.effect.{Clock, IO, IOLocal}
+import contextStorage.{ContextOperations, IOStorage}
 import java.util.UUID
 import logEvent.LogLevel
 import logEvent.LogLevel.{Debug, Info, Warn}
@@ -15,6 +16,8 @@ trait BridgeLogger {
 }
 
 final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) extends BridgeLogger {
+  private val ctxOp: ContextOperations = new ContextOperations(ioStorage)
+
   private def format(storage: IOStorage, msg: String, level: LogLevel = Debug): String = {
     val values =
       if (storage.values.isEmpty) "-"
@@ -51,4 +54,32 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
       sink.error(format(storage, msg, LogLevel.Error) + e.toString)
     }
   }
+
+  def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A] =
+    for {
+      _ <- ctxOp.setRequest(UUID.randomUUID().toString)
+      _ <- ctxOp.setCorrelation(correlationId)
+      start <- Clock[IO].monotonic
+      _ <- ctxOp.markStart(start.toMillis)
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) =>
+          for {
+            end <- Clock[IO].monotonic
+            _ <- ctxOp.markEnd(end.toMillis)
+            _ <- info("Request Completed")
+          } yield ()
+        case Outcome.Errored(e) =>
+          for {
+            end <- Clock[IO].monotonic
+            _ <- ctxOp.markEnd(end.toMillis)
+            _ <- error("RequestFailed", e)
+          } yield ()
+        case Outcome.Canceled() =>
+          for {
+            end <- Clock[IO].monotonic
+            _ <- ctxOp.markEnd(end.toMillis)
+            _ <- warn("Request cancelled")
+          } yield ()
+      }
+    } yield result
 }

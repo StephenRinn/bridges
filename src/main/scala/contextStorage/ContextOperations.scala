@@ -1,11 +1,8 @@
 package contextStorage
 
-import cats.effect.kernel.Outcome
-import cats.effect.{Clock, IO, IOLocal}
-import java.util.UUID
-import logger.BridgeLogger
+import cats.effect.{IO, IOLocal}
 
-class ContextOperations(local: IOLocal[IOStorage], logger: BridgeLogger) {
+class ContextOperations(local: IOLocal[IOStorage]) {
   def setCorrelation(id: String): IO[Unit] = { local.update(_.copy(correlationId = id)) }
 
   def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId))}
@@ -34,32 +31,4 @@ class ContextOperations(local: IOLocal[IOStorage], logger: BridgeLogger) {
   def get: IO[IOStorage] = {
     local.get
   }
-
-  def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A] =
-    for {
-      _ <- setRequest(UUID.randomUUID().toString)
-      _ <- setCorrelation(correlationId)
-      start <- Clock[IO].monotonic
-      _ <- markStart(start.toMillis)
-      result <- fa.guaranteeCase {
-        case Outcome.Succeeded(fa) =>
-          for {
-          end <- Clock[IO].monotonic
-          _ <- markEnd(end.toMillis)
-          _ <- logger.info("Request Completed")
-        } yield ()
-        case Outcome.Errored(e) =>
-          for {
-            end <- Clock[IO].monotonic
-            _ <- markEnd(end.toMillis)
-            _ <- logger.error("RequestFailed", e)
-          } yield ()
-        case Outcome.Canceled() =>
-          for {
-            end <- Clock[IO].monotonic
-            _ <- markEnd(end.toMillis)
-            _ <- logger.warn("Request cancelled")
-        } yield ()
-      }
-    } yield result
 }
