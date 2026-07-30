@@ -13,7 +13,7 @@ trait BridgeLogger {
   def warn(msg: String): IO[Unit]
   def error(msg: String): IO[Unit]
   def error(msg: String, e: Throwable): IO[Unit]
-  def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A]
+  def withRequest[A](correlationId: String = UUID.randomUUID().toString, fa: IO[A]): IO[A]
   def updateValues(key: String, value: String): IO[Unit]
   def setCorrelationId(id: String): IO[Unit]
   def setRequestId(id: String): IO[Unit]
@@ -50,7 +50,7 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
       sink.error(toEvent(msg, LogLevel.Error, Some(e)))
   }
 
-  override def withRequest[A](correlationId: String = UUID.randomUUID().toString)(implicit fa: IO[A]): IO[A] =
+  override def withRequest[A](correlationId: String = UUID.randomUUID().toString, fa: IO[A]): IO[A] =
     for {
       _ <- ctxOp.setRequest(UUID.randomUUID().toString)
       _ <- ctxOp.setCorrelation(correlationId)
