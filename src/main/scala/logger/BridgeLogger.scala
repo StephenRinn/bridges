@@ -36,7 +36,7 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     sink.trace(toEvent(msg, Trace))
 
   override def debug(msg: String): IO[Unit] =
-    sink.debug(toEvent(msg, Trace))
+    sink.debug(toEvent(msg, Debug))
 
   override def info(msg: String): IO[Unit] = {
       sink.info(toEvent(msg, Info))
