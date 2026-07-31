@@ -1,11 +1,10 @@
 package logSink
 
-import cats.effect.{IO, IOLocal}
-import contextStorage.IOStorage
+import cats.effect.IO
 import logEvent._
 
 
-class IOBridgeSink(ioStorage: IOLocal[IOStorage]) extends LogSink {
+class IOBridgeSink extends LogSink {
 
   private def format(logEvent: LogEvent): String = {
     val ctx = logEvent.context
@@ -25,33 +24,10 @@ class IOBridgeSink(ioStorage: IOLocal[IOStorage]) extends LogSink {
        | [rid=${ctx.requestId}] [duration=$duration] [values=$values] [message=${logEvent.message}] $throwO""".stripMargin
   }
 
-  private def logIO(event: IO[LogEvent]): IO[Unit] = {
-    for {
-      log <- event
-      formattedMsg = format(log)
-    } yield
+  override protected def log(event: LogEvent): IO[Unit] = {
+    val formattedLog = format(event)
       IO.blocking {
-        println(formattedMsg)
+        println(formattedLog)
       }
-  }
-
-  override def trace(event: IO[LogEvent]): IO[Unit] = {
-    logIO(event)
-  }
-
-  override def debug(event: IO[LogEvent]): IO[Unit] = {
-    logIO(event)
-  }
-
-  override def info(event: IO[LogEvent]): IO[Unit] = {
-    logIO(event)
-  }
-
-  override def warn(event: IO[LogEvent]): IO[Unit] = {
-    logIO(event)
-  }
-
-  override def error(event: IO[LogEvent]): IO[Unit] = {
-    logIO(event)
   }
 }

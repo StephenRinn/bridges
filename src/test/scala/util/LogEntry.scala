@@ -13,39 +13,35 @@ trait LogSi
 
 class TestLogSink(ref: Ref[IO, Vector[LogEntry]]) extends LogSink {
 
+  protected def log(event: LogEvent): IO[Unit] = IO()
 
-  override def trace(event: IO[LogEvent]): IO[Unit] = {
+  override def trace(event: LogEvent): IO[Unit] = {
     for{
-      eventT <- event
-      _ <- ref.update(_ :+ LogEntry("TRACE:", eventT.toString))
+      _ <- ref.update(_ :+ LogEntry("TRACE:", event.toString))
     } yield()
   }
 
-  override def debug(event: IO[LogEvent]): IO[Unit] = {
+  override def debug(event: LogEvent): IO[Unit] = {
     for{
-      eventT <- event
-      _ <- ref.update(_ :+ LogEntry("DEBUG:", eventT.toString))
+      _ <- ref.update(_ :+ LogEntry("DEBUG:", event.toString))
     } yield()
   }
 
-  override def info(event: IO[LogEvent]): IO[Unit] = {
+  override def info(event: LogEvent): IO[Unit] = {
     for{
-      eventT <- event
-      _ <- ref.update(_ :+ LogEntry("INFO:", eventT.toString))
+      _ <- ref.update(_ :+ LogEntry("INFO:", event.toString))
     } yield()
   }
 
-  override def warn(event: IO[LogEvent]): IO[Unit] =
+  override def warn(event: LogEvent): IO[Unit] =
     for{
-      eventT <- event
-      _ <- ref.update(_ :+ LogEntry("WARN:", eventT.toString))
+      _ <- ref.update(_ :+ LogEntry("WARN:", event.toString))
     } yield()
 
 
-  override def error(event: IO[LogEvent]): IO[Unit] =
+  override def error(event: LogEvent): IO[Unit] =
     for{
-      eventT <- event
-      _ <- ref.update(_ :+ LogEntry("ERROR:", eventT.toString))
+      _ <- ref.update(_ :+ LogEntry("ERROR:", event.toString))
     } yield()
 
 

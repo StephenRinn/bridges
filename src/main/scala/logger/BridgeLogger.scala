@@ -32,30 +32,52 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     } yield event
   }
 
-  override def trace(msg: String): IO[Unit] =
-    sink.trace(toEvent(msg, Trace))
+  override def trace(msg: String): IO[Unit] = {
+    for {
+      event <- toEvent(msg, Trace)
+      _ <- sink.trace(event)
+    } yield ()
+  }
 
-  override def debug(msg: String): IO[Unit] =
-    sink.debug(toEvent(msg, Debug))
+  override def debug(msg: String): IO[Unit] = {
+    for {
+      event <- toEvent(msg, Debug)
+      _ <- sink.debug(event)
+    } yield ()
+  }
 
   override def info(msg: String): IO[Unit] = {
-      sink.info(toEvent(msg, Info))
+    for {
+      event <- toEvent(msg, Info)
+      _ <- sink.info(event)
+    } yield ()
   }
 
   override def warn(msg: String): IO[Unit] = {
-      sink.warn(toEvent(msg, Warn))
+    for {
+      event <- toEvent(msg, Warn)
+      _ <- sink.warn(event)
+    } yield ()
   }
 
   override def error(msg: String): IO[Unit] = {
-      sink.error(toEvent(msg, LogLevel.Error))
+    for {
+      event <- toEvent(msg, Error)
+      _ <- sink.error(event)
+    } yield ()
   }
 
   override def error(msg: String, e: Throwable): IO[Unit] = {
-      sink.error(toEvent(msg, LogLevel.Error, Some(e)))
+    for {
+      event <- toEvent(msg, Error)
+      _ <- sink.error(event)
+    } yield ()
   }
 
   override def withRequest[A](correlationId: String = UUID.randomUUID().toString, fa: IO[A]): IO[A] =
     for {
+      oldIOStorage <- ioStorage.get
+      _ <- ioStorage.set(IOStorage.empty)
       _ <- ctxOp.setRequest(UUID.randomUUID().toString)
       _ <- ctxOp.setCorrelation(correlationId)
       start <- Clock[IO].realTime
@@ -66,18 +88,21 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
             end <- Clock[IO].realTime
             _ <- ctxOp.markEnd(end.toMillis)
             _ <- info("Request Completed")
+            _ <- ioStorage.set(oldIOStorage)
           } yield ()
         case Outcome.Errored(e) =>
           for {
             end <- Clock[IO].realTime
             _ <- ctxOp.markEnd(end.toMillis)
             _ <- error("RequestFailed", e)
+            _ <- ioStorage.set(oldIOStorage)
           } yield ()
         case Outcome.Canceled() =>
           for {
             end <- Clock[IO].realTime
             _ <- ctxOp.markEnd(end.toMillis)
             _ <- warn("Request cancelled")
+            _ <- ioStorage.set(oldIOStorage)
           } yield ()
       }
     } yield result

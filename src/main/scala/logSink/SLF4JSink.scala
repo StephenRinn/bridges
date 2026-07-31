@@ -2,7 +2,7 @@ package logSink
 
 import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
-import logEvent.LogEvent
+import logEvent.{LogEvent, LogLevel}
 
 class SLF4JSink extends LogSink with LazyLogging {
 
@@ -24,46 +24,14 @@ class SLF4JSink extends LogSink with LazyLogging {
        | [rid=${ctx.requestId}] [duration=$duration] [values=$values] [message=${logEvent.message}] $throwO""".stripMargin
   }
 
-
-  override def trace(event: IO[LogEvent]): IO[Unit] = {
-    for {
-      log <- event
-      formattedLog = format(log)
-    } yield
-      IO.blocking(logger.trace(formattedLog))
-  }
-
-  override def debug(event: IO[LogEvent]): IO[Unit] = {
-    for {
-      log <- event
-      formattedLog = format(log)
-    } yield
-      IO.blocking(logger.debug(formattedLog))
-  }
-
-  override def info(event: IO[LogEvent]): IO[Unit] = {
-    for {
-      log <- event
-      formattedLog = format(log)
-    } yield
-      IO.blocking(logger.info(formattedLog))
-
-
-  }
-
-  override def warn(event: IO[LogEvent]): IO[Unit] = {
-    for{
-      log <- event
-      formattedLog = format(log)
-    } yield
-    IO.blocking(logger.warn(formattedLog))
-  }
-
-  override def error(event: IO[LogEvent]): IO[Unit] = {
-    for{
-      log <- event
-      formattedLog = format(log)
-    } yield
-    IO.blocking(logger.error(formattedLog))
+  override protected def log(event: LogEvent): IO[Unit] = {
+    val formattedLog = format(event)
+    event.level match {
+      case LogLevel.Trace => IO.blocking(logger.trace(formattedLog))
+      case LogLevel.Debug => IO.blocking(logger.debug(formattedLog))
+      case LogLevel.Info => IO.blocking(logger.info(formattedLog))
+      case LogLevel.Warn => IO.blocking(logger.warn(formattedLog))
+      case LogLevel.Error => IO.blocking(logger.error(formattedLog))
+    }
   }
 }

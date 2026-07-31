@@ -25,31 +25,8 @@ class JSONSink extends LogSink{
     ).noSpaces
   }
 
-  private def printJson(event: IO[LogEvent]): IO[Unit] = {
-    for{
-      log <- event
-    } yield
-    IO.blocking(println(toLoggingJson(log)))
-  }
-
-  override def trace(event: IO[LogEvent]): IO[Unit] = {
-    printJson(event)
-  }
-
-  override def debug(event: IO[LogEvent]): IO[Unit] = {
-    printJson(event)
-  }
-
-  override def info(event: IO[LogEvent]): IO[Unit] = {
-    printJson(event)
-  }
-
-  override def warn(event: IO[LogEvent]): IO[Unit] = {
-    printJson(event)
-  }
-
-  override def error(event: IO[LogEvent]): IO[Unit] = {
-    printJson(event)
+  override protected def log(event: LogEvent): IO[Unit] = {
+    IO.blocking(println(toLoggingJson(event)))
   }
 }
 
