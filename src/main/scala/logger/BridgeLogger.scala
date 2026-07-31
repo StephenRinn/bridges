@@ -22,7 +22,7 @@ trait BridgeLogger {
 }
 
 final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) extends BridgeLogger {
-  private val ctxOp: ContextOperations = new ContextOperations(ioStorage)
+  private val contextOps: ContextOperations = new ContextOperations(ioStorage)
 
   private def toEvent(message: String, level: LogLevel, e: Option[Throwable] = None): IO[LogEvent] = {
     for {
@@ -78,40 +78,40 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     for {
       oldIOStorage <- ioStorage.get
       _ <- ioStorage.set(IOStorage.empty)
-      _ <- ctxOp.setRequest(UUID.randomUUID().toString)
-      _ <- ctxOp.setCorrelation(correlationId)
+      _ <- contextOps.setRequest(UUID.randomUUID().toString)
+      _ <- contextOps.setCorrelation(correlationId)
       start <- Clock[IO].realTime
-      _ <- ctxOp.markStart(start.toMillis)
+      _ <- contextOps.markStart(start.toMillis)
       result <- fa.guaranteeCase {
         case Outcome.Succeeded(_) =>
           for {
             end <- Clock[IO].realTime
-            _ <- ctxOp.markEnd(end.toMillis)
+            _ <- contextOps.markEnd(end.toMillis)
             _ <- info("Request Completed")
             _ <- ioStorage.set(oldIOStorage)
           } yield ()
         case Outcome.Errored(e) =>
           for {
             end <- Clock[IO].realTime
-            _ <- ctxOp.markEnd(end.toMillis)
-            _ <- error("RequestFailed", e)
+            _ <- contextOps.markEnd(end.toMillis)
+            _ <- error("Request failed with exception", e)
             _ <- ioStorage.set(oldIOStorage)
           } yield ()
         case Outcome.Canceled() =>
           for {
             end <- Clock[IO].realTime
-            _ <- ctxOp.markEnd(end.toMillis)
+            _ <- contextOps.markEnd(end.toMillis)
             _ <- warn("Request cancelled")
             _ <- ioStorage.set(oldIOStorage)
           } yield ()
       }
     } yield result
 
-  override def updateValues(key: String, value: String): IO[Unit] = ctxOp.updateValues(key, value)
+  override def updateValues(key: String, value: String): IO[Unit] = contextOps.updateValues(key, value)
 
-  override def setCorrelationId(id: String): IO[Unit] = ctxOp.setCorrelation(id)
+  override def setCorrelationId(id: String): IO[Unit] = contextOps.setCorrelation(id)
 
-  override def setRequestId(id: String): IO[Unit] = ctxOp.setRequest(id)
+  override def setRequestId(id: String): IO[Unit] = contextOps.setRequest(id)
 
-  protected def getIOStorage: IO[IOStorage] = ctxOp.get
+  protected def getIOStorage: IO[IOStorage] = contextOps.get
 }
