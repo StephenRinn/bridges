@@ -69,7 +69,7 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
 
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
-      event <- toEvent(msg, Error)
+      event <- toEvent(msg, Error, Some(e))
       _ <- sink.error(event)
     } yield ()
   }

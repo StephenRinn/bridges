@@ -2,7 +2,11 @@ package contextStorage
 
 import cats.effect.{IO, IOLocal}
 
-class ContextOperations(local: IOLocal[IOStorage]) {
+final class ContextOperations(private val local: IOLocal[IOStorage]) {
+  def modify(f: IOStorage => IOStorage): IO[Unit] = local.update(f)
+
+  def clear: IO[Unit] = local.set(IOStorage.empty)
+
   def setCorrelation(id: String): IO[Unit] = { local.update(_.copy(correlationId = id)) }
 
   def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId))}
