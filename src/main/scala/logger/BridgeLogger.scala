@@ -88,5 +88,5 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
 
   override def setRequestId(id: String): IO[Unit] = ctxOp.setRequest(id)
 
-  private def getIOStorage: IO[IOStorage] = ctxOp.get
+  protected def getIOStorage: IO[IOStorage] = ctxOp.get
 }

@@ -17,15 +17,9 @@ class ContextOperations(local: IOLocal[IOStorage]) {
   def markStart(startTime: Long): IO[Unit] = {
     local.update(_.copy(startTime = Some(startTime)))
   }
-  def markStart: IO[Unit] = {
-    local.update(_.copy(startTime = Some(System.currentTimeMillis())))
-  }
 
   def markEnd(endTime: Long): IO[Unit] = {
     local.update(_.copy(endTime = Some(endTime)))
-  }
-  def markEnd: IO[Unit] = {
-    local.update(_.copy(endTime = Some(System.currentTimeMillis())))
   }
 
   def get: IO[IOStorage] = {
