@@ -1,10 +1,10 @@
 package logSink
 
 import cats.effect.IO
-import io.circe.{Encoder, Json}
 import io.circe.syntax.EncoderOps
+import io.circe.{Encoder, Json}
 import logEvent.LogEvent
-import JsonHelpers._
+import logSink.JsonHelpers._
 
 class JSONSink extends LogSink{
   private def toLoggingJson(logEvent: LogEvent): String = {
