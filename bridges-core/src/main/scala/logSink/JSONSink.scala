@@ -19,6 +19,7 @@ class JSONSink extends LogSink{
       "cid" -> ctx.correlationId.asJson,
       "rid" -> ctx.requestId.asJson,
       "duration" -> duration.asJson,
+      "values" -> ctx.values.asJson,
       "level" -> logEvent.level.toString.asJson,
       "message" -> logEvent.message.asJson,
       "error" -> logEvent.throwable.orNull.asJson
