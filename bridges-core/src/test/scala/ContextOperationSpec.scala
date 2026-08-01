@@ -4,13 +4,15 @@ import munit.CatsEffectSuite
 
 class ContextOperationSpec extends CatsEffectSuite {
 
-  private def contextOps: IO[ContextOperations] =
+  private def contextOps[A](test: ContextOperations => IO[A]): IO[A] =
     for {
       storage <- IOLocal(IOStorage.empty)
-    } yield new ContextOperations(storage)
+      ctx = new ContextOperations(storage)
+      result <- test(ctx)
+    } yield result
 
   test("Context Operations sets an empty storage") {
-    contextOps.flatMap { ctx =>
+    contextOps { ctx =>
       ctx.get.map{ request =>
         assertEquals(request.requestId, "")
         assertEquals(request.correlationId, "")
@@ -21,7 +23,7 @@ class ContextOperationSpec extends CatsEffectSuite {
   }
 
   test("setRequest stores the request Id correctly") {
-    contextOps.flatMap{ ctx =>
+    contextOps { ctx =>
       for {
         _ <- ctx.setRequest("abc123")
         request <- ctx.get
@@ -30,7 +32,7 @@ class ContextOperationSpec extends CatsEffectSuite {
   }
 
   test("setCorrelation stores the correlationId correctly") {
-    contextOps.flatMap{ ctx =>
+    contextOps { ctx =>
       for {
         _ <- ctx.setCorrelation("abc123")
         request <- ctx.get
@@ -39,7 +41,7 @@ class ContextOperationSpec extends CatsEffectSuite {
   }
 
   test("markStart stores start time correctly") {
-    contextOps.flatMap{ ctx =>
+    contextOps { ctx =>
       for {
         clock <- Clock[IO].realTime
         now = clock.toMillis
@@ -50,7 +52,7 @@ class ContextOperationSpec extends CatsEffectSuite {
   }
 
   test("markEnd stores start time correctly") {
-    contextOps.flatMap{ ctx =>
+    contextOps { ctx =>
       for {
         clock <- Clock[IO].realTime
         now = clock.toMillis
@@ -61,7 +63,7 @@ class ContextOperationSpec extends CatsEffectSuite {
   }
 
   test("context composes correctly") {
-    contextOps.flatMap{ ctx =>
+    contextOps { ctx =>
       for {
         clockS <- Clock[IO].realTime
         start = clockS.toMillis
@@ -82,7 +84,7 @@ class ContextOperationSpec extends CatsEffectSuite {
   }
 
   test("context is correctly cleared") {
-    contextOps.flatMap{ ctx =>
+    contextOps { ctx =>
       for {
         clockS <- Clock[IO].realTime
         start = clockS.toMillis
