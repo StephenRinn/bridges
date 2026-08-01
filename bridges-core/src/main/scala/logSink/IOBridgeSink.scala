@@ -9,8 +9,11 @@ class IOBridgeSink extends LogSink {
   private def format(logEvent: LogEvent): String = {
     val ctx = logEvent.context
     val values =
-      if (ctx.values.isEmpty) "-"
-      else ctx.values.map { case (k, v) => s"$k=$v" }.mkString(", ")
+      if (ctx.values.isEmpty) ""
+      else {
+        val kVString = ctx.values.map { case (k, v) => s"$k=$v" }.mkString(", ")
+        s"[values=$kVString] "
+      }
 
     val throwO = if (logEvent.throwable.isEmpty) "" else {
       s"[Error=${logEvent.throwable.get}]"
@@ -21,7 +24,7 @@ class IOBridgeSink extends LogSink {
       case _ => None
     }
     s"""[timestamp=${System.currentTimeMillis()}] [level=${logEvent.level}] [cid=${ctx.correlationId}]
-       | [rid=${ctx.requestId}] [duration=$duration] [values=$values] [message=${logEvent.message}] $throwO""".stripMargin
+       | [rid=${ctx.requestId}] [duration=$duration] $values[message=${logEvent.message}] $throwO""".stripMargin
   }
 
   override protected def log(event: LogEvent): IO[Unit] = {
