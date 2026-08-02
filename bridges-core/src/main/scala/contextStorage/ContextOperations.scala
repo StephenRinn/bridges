@@ -1,6 +1,7 @@
 package contextStorage
 
 import cats.effect.{IO, IOLocal}
+import logEvent.{LogEvent, LogLevel}
 
 final class ContextOperations(private val local: IOLocal[IOStorage]) {
   def modify(f: IOStorage => IOStorage): IO[Unit] = local.update(f)
@@ -16,6 +17,17 @@ final class ContextOperations(private val local: IOLocal[IOStorage]) {
       val updated = storage.values + (key -> value)
       (storage.copy(values = updated), ())
     }
+  }
+
+  def updateRebuildLog(event: LogEvent, level: LogLevel): IO[Unit] = {
+    local.modify{ storage =>
+      val updated = storage.rebuildLog :+ RebuildLog(event, level)
+      (storage.copy(rebuildLog = updated), ())
+    }
+  }
+
+  def clearRebuildLogs: IO[Unit] = {
+    local.update(_.copy(rebuildLog = List[RebuildLog]().empty))
   }
 
   def markStart(startTime: Long): IO[Unit] = {

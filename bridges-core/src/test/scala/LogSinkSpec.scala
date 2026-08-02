@@ -1,6 +1,6 @@
 import cats.effect.{IO, IOLocal}
 import cats.implicits.catsSyntaxParallelTraverse_
-import contextStorage.IOStorage
+import contextStorage.{IOStorage, RebuildLog, SampleData}
 import logger.{BridgeLogger, BridgeLoggerImpl}
 import munit.CatsEffectSuite
 import util.{LogEntry, TestLogSink}
@@ -137,7 +137,9 @@ class LogSinkSpec extends CatsEffectSuite {
           requestId = s"req-$id",
           correlationId = s"corr-$id",
           values = Map.empty,
-          startTime = None, endTime = None
+          startTime = None, endTime = None,
+          sampleData = SampleData(None, None),
+          rebuildLog = List[RebuildLog]().empty
         )
       ) *>
         List
@@ -197,7 +199,9 @@ class LogSinkSpec extends CatsEffectSuite {
             requestId = s"req-$id",
             correlationId = s"corr-$id",
             values = Map.empty,
-            startTime = None, endTime = None
+            startTime = None, endTime = None,
+            sampleData = SampleData(None, None),
+            rebuildLog = List[RebuildLog]().empty
           )
         )
 

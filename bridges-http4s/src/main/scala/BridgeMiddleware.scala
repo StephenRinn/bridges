@@ -6,7 +6,10 @@ import org.http4s.HttpApp
 import org.typelevel.ci.CIStringSyntax
 
 object BridgeMiddleware {
-  def apply(logger: BridgeLogger, defaultValues: Map[String, String]): HttpApp[IO] => HttpApp[IO] =
+  def apply(
+      logger: BridgeLogger,
+      defaultValues: Map[String, String] = Map[String, String]().empty,
+  ): HttpApp[IO] => HttpApp[IO] =
     app =>
       HttpApp { request =>
         val correlationId =
