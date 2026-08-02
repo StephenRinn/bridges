@@ -15,13 +15,19 @@ import logSink.LogSink
 
 trait BridgeLogger {
   def trace(msg: String): IO[Unit]
+  def trace(msg: String, values: Map[String, String]): IO[Unit]
   def debug(msg: String): IO[Unit]
+  def debug(msg: String, values: Map[String, String]): IO[Unit]
   def info(msg: String): IO[Unit]
+  def info(msg: String, values: Map[String, String]): IO[Unit]
   def warn(msg: String): IO[Unit]
+  def warn(msg: String, values: Map[String, String]): IO[Unit]
   def error(msg: String): IO[Unit]
+  def error(msg: String, values: Map[String, String]): IO[Unit]
   def error(msg: String, e: Throwable): IO[Unit]
+  def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit]
   def withRequest[A](
-      values: Map[String, String] = Map[String,String](),
+      values: Map[String, String] = Map[String, String](),
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
   )(fa: IO[A]): IO[A]
@@ -58,10 +64,26 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     } yield ()
   }
 
+  override def trace(msg: String, values: Map[String, String]): IO[Unit] = {
+    for {
+      storage <- ioStorage.get
+      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- trace(msg)
+    } yield ()
+  }
+
   override def debug(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Debug)
       _ <- sink.debug(event)
+    } yield ()
+  }
+
+  override def debug(msg: String, values: Map[String, String]): IO[Unit] = {
+    for {
+      storage <- ioStorage.get
+      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- debug(msg)
     } yield ()
   }
 
@@ -72,10 +94,26 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     } yield ()
   }
 
+  override def info(msg: String, values: Map[String, String]): IO[Unit] = {
+    for {
+      storage <- ioStorage.get
+      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- info(msg)
+    } yield ()
+  }
+
   override def warn(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Warn)
       _ <- sink.warn(event)
+    } yield ()
+  }
+
+  override def warn(msg: String, values: Map[String, String]): IO[Unit] = {
+    for {
+      storage <- ioStorage.get
+      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- warn(msg)
     } yield ()
   }
 
@@ -86,10 +124,26 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
     } yield ()
   }
 
+  override def error(msg: String, values: Map[String, String]): IO[Unit] = {
+    for {
+      storage <- ioStorage.get
+      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- error(msg)
+    } yield ()
+  }
+
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
       event <- toEvent(msg, Error, Some(e))
       _ <- sink.error(event)
+    } yield ()
+  }
+
+  override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
+    for {
+      storage <- ioStorage.get
+      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- error(msg, e)
     } yield ()
   }
 
