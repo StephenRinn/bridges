@@ -16,7 +16,7 @@ object BridgeMiddleware {
         val correlationHeader = Header.Raw(ci"X-Correlation-ID", correlationId)
 
         val requestId = UUID.randomUUID().toString
-        logger.withRequest(correlationId, requestId)( app(request))
+        logger.withRequest(correlationId = correlationId, requestId = requestId)( app(request))
           .map(_.putHeaders(correlationHeader))
       }
 }

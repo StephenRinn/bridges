@@ -3,6 +3,7 @@ package logger
 import cats.effect.Clock
 import cats.effect.IO
 import cats.effect.IOLocal
+import cats.effect.LiftIO
 import cats.effect.kernel.Outcome
 import contextStorage.ContextOperations
 import contextStorage.IOStorage
@@ -20,6 +21,7 @@ trait BridgeLogger {
   def error(msg: String): IO[Unit]
   def error(msg: String, e: Throwable): IO[Unit]
   def withRequest[A](
+      values: Map[String, String] = Map[String,String](),
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
   )(fa: IO[A]): IO[A]
@@ -92,12 +94,20 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
   }
 
   override def withRequest[A](
+      values: Map[String, String] = Map(),
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
   )(fa: IO[A]): IO[A] = {
+    val storage = IOStorage.empty
+    val updated =
+      storage.copy(requestId = requestId, correlationId = correlationId, values = values)
+    withRequestInternal(updated)(fa)
+  }
+
+  private def withRequestInternal[A](ioStorageIn: IOStorage)(fa: IO[A]): IO[A] = {
     val contextSetup = for {
-      _ <- contextOps.setRequest(requestId)
-      _ <- contextOps.setCorrelation(correlationId)
+      _ <- contextOps.setRequest(ioStorageIn.requestId)
+      _ <- contextOps.setCorrelation(ioStorageIn.correlationId)
       start <- Clock[IO].realTime
       _ <- contextOps.markStart(start.toMillis)
     } yield ()
@@ -138,4 +148,11 @@ final class BridgeLoggerImpl(ioStorage: IOLocal[IOStorage], sink: LogSink) exten
   override def setRequestId(id: String): IO[Unit] = contextOps.setRequest(id)
 
   protected def getIOStorage: IO[IOStorage] = contextOps.get
+
+}
+
+object BridgeLogger {
+  def lift[F[_]: LiftIO](logger: BridgeLogger): GenericBridgeLogger[F] = {
+    GenericBridgeLogger.fromBridge[F](logger)
+  }
 }
