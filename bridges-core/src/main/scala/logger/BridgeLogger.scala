@@ -83,13 +83,16 @@ final class BridgeLoggerImpl(
     contextOps.get.flatMap { storage =>
       val isSampled = storage.sampled.contains(true)
       val meetsMinLevel = bridgeLoggerConfig.minLevel <= param.level
+      // Handle special case of error first
       if (param.level == Error) {
         for {
           _ <- rebuildAndPrint(param, storage, fa)
           _ <- contextOps.setSampled(true)
         } yield ()
+        // Check for sampled and if we log all levels for samples
       } else if (isSampled && (bridgeLoggerConfig.sampleBelowMinLevel || meetsMinLevel)){
         fa(param)
+        // If we haven't checked sampling yet do so if the log is at least the minimum level
       } else if (storage.sampled.isEmpty && meetsMinLevel) {
         val sampled = bridgeLoggerConfig.sampleRate > Random.between(0f, 1f)
         contextOps.setSampled(sampled).flatMap { _ =>
@@ -97,11 +100,13 @@ final class BridgeLoggerImpl(
             rebuildAndPrint(param, storage, fa)
           } else IO.unit
         }
+        // Check if sampled or if it's just above min level
       } else if (isSampled || meetsMinLevel) {
         storage.rebuildLog match {
           case Nil => fa(param)
           case _ => rebuildAndPrint(param, storage, fa)
         }
+        // Default case
       } else {
         if (!meetsMinLevel && bridgeLoggerConfig.bufferBelowMinLevel) {
           contextOps.updateRebuildLog(param, param.level)
