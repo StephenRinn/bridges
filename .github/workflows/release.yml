@@ -27,9 +27,9 @@ jobs:
           echo 
           gpg --list-secret-keys --keyid-format LONG
 
-      - name: Check PGP secret type
+      - name: Validate GPG secret
         run: |
-          echo "${{ secrets.PGP_SECRET }}" | grep "BEGIN PGP"
+          echo "${{ secrets.PGP_SECRET }}" | gpg --batch --import-options show-only --import
           
 
       - name: Release
