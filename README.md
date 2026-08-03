@@ -301,3 +301,18 @@ Automatic HTTP integration is provided separately by the `bridges-http4s` module
 - Efficient sampling with buffered replay
 - Minimal API surface
 - Easy integration into Cats Effect applications
+
+# Roadmap
+
+- Full testing suites
+  - sampling and buffering tests
+  - concurrency tests
+  - stress tests
+- Performance profiling
+- log4cats integration
+- OpenTelemetry
+  - TraceId, SpanId, baggage
+- Improve Sampling
+  - adaptive sampline
+  - ruleBased sampling
+  - 
