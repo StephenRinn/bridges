@@ -24,8 +24,7 @@ jobs:
       - name: Check GPG
         run: |
           echo "${{ secrets.PGP_SECRET }}" | head -c 50
-          echo
-          gpg --list-secret-keys --keyid-format LONG
+          echo gpg --list-secret-keys --keyid-format LONG
 
       - name: Release
         run: sbt ci-release
