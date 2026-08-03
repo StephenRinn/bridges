@@ -1,10 +1,14 @@
 package logger
 
-import cats.effect.{Clock, IO, IOLocal, LiftIO}
+import cats.effect.Clock
+import cats.effect.IO
+import cats.effect.IOLocal
+import cats.effect.LiftIO
 import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
-import logEvent.{LogEvent, LogLevel}
+import logEvent.LogEvent
+import logEvent.LogLevel
 import logEvent.LogLevel._
 import logSink.LogSink
 import scala.math.Ordered.orderingToOrdered
@@ -25,6 +29,7 @@ trait BridgeLogger {
   def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit]
   def withRequest[A](
       values: Map[String, String] = Map[String, String](),
+      sampleRequest: Option[Boolean] = None,
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
   )(fa: IO[A]): IO[A]
@@ -210,12 +215,13 @@ final class BridgeLoggerImpl(
 
   override def withRequest[A](
       values: Map[String, String] = Map(),
+      sampleRequest: Option[Boolean] = None,
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
   )(fa: IO[A]): IO[A] = {
     val storage = IOStorage.empty
     val updated =
-      storage.copy(requestId = requestId, correlationId = correlationId, values = values)
+      storage.copy(requestId = requestId, correlationId = correlationId, values = values, sampled = sampleRequest)
     withRequestInternal(updated)(fa)
   }
 
@@ -267,5 +273,41 @@ final class BridgeLoggerImpl(
 object BridgeLogger {
   def lift[F[_]: LiftIO](logger: BridgeLogger): GenericBridgeLogger[F] = {
     GenericBridgeLogger.fromBridge[F](logger)
+  }
+
+  case class builder(
+      minLevel: LogLevel = Info,
+      sampleRate: Float = 1.0f,
+      sampleIncludesBelowMinLevel: Boolean = false,
+      bufferMessagesBelowMinLevel: Boolean = false,
+      logBufferSize: Int = 200,
+  ) {
+    def minLevel(logLevel: LogLevel): builder = {
+      copy(minLevel = logLevel)
+    }
+    def sampleRate(sampleRate: Float): builder = {
+      copy(sampleRate = sampleRate)
+    }
+    def sampleBelowMinLevel(sampleBelowMinLevel: Boolean): builder = {
+      copy(sampleIncludesBelowMinLevel = sampleBelowMinLevel)
+    }
+    def bufferBelowMinLevel(bufferBelowMinLevel: Boolean): builder = {
+      copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
+    }
+    private def toBridgeLoggerConfig: BridgeLoggerConfig = {
+      new BridgeLoggerConfig(
+        minLevel = this.minLevel,
+        sampleRate = this.sampleRate,
+        sampleBelowMinLevel = this.sampleIncludesBelowMinLevel,
+        bufferBelowMinLevel = this.bufferMessagesBelowMinLevel,
+        bufferSize = this.logBufferSize,
+      )
+    }
+    def build(ioStorage: IOLocal[IOStorage], sink: LogSink): BridgeLogger =
+      new BridgeLoggerImpl(
+        ioStorage = ioStorage,
+        sink = sink,
+        bridgeLoggerConfig = toBridgeLoggerConfig,
+      )
   }
 }

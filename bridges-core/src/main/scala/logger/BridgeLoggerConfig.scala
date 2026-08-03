@@ -6,7 +6,7 @@ import logEvent.LogLevel.Info
 case class BridgeLoggerConfig(
     minLevel: LogLevel = Info,
     sampleRate: Float = 1.0f,
-    sampleBelowMinLevel: Boolean = true,
+    sampleBelowMinLevel: Boolean = false,
     bufferBelowMinLevel: Boolean = false,
     bufferSize: Int = 200,
 )
