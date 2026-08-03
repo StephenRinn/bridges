@@ -1,4 +1,4 @@
-ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / version := "0.1.1"
 ThisBuild / organization := "io.github.stephenrinn"
 ThisBuild / organizationName := "Stephen Rinn"
 ThisBuild / organizationHomepage := Some(url("https://github.com/StephenRinn"))
