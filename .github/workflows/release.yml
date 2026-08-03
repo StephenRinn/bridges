@@ -27,6 +27,11 @@ jobs:
           echo 
           gpg --list-secret-keys --keyid-format LONG
 
+      - name: Check PGP secret type
+        run: |
+          echo "${{ secrets.PGP_SECRET }}" | grep "BEGIN PGP"
+          
+
       - name: Release
         run: sbt ci-release
         env:
