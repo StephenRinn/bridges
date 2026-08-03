@@ -263,6 +263,8 @@ final class BridgeLoggerImpl(
   override def setCorrelationId(id: String): IO[Unit] = contextOps.setCorrelation(id)
 
   override def setRequestId(id: String): IO[Unit] = contextOps.setRequest(id)
+
+  def getStorage: IO[IOStorage] = ioStorage.get
 }
 
 object BridgeLogger {
