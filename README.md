@@ -1,8 +1,11 @@
 # bridges-core
 
-`bridges-core` is the foundation of the Bridges logging ecosystem. It provides a fiber-local structured logging API built on Cats Effect `IO` and `IOLocal`, allowing request-scoped context to flow naturally across asynchronous boundaries without relying on thread-local storage (MDC).
+`bridges-core` is the foundation of the Bridges logging ecosystem. It provides a fiber-local structured logging API
+built on Cats Effect `IO` and `IOLocal`, allowing request-scoped context to flow naturally across asynchronous
+boundaries without relying on thread-local storage (MDC).
 
-The module is intentionally backend-agnostic. Log events are produced by `BridgeLogger` and written through a pluggable `LogSink`, making it easy to integrate with SLF4J or custom destinations.
+The module is intentionally backend-agnostic. Log events are produced by `BridgeLogger` and written through a pluggable
+`LogSink`, making it easy to integrate with SLF4J or custom destinations.
 
 ---
 
@@ -215,7 +218,8 @@ Sampling behavior is controlled through `BridgeLoggerConfig`.
 
 One of the distinguishing features of Bridges is buffered replay.
 
-When buffering is enabled, logs below the configured minimum level are temporarily stored instead of immediately emitted.
+When buffering is enabled, logs below the configured minimum level are temporarily stored instead of immediately
+emitted.
 
 If the request later:
 
@@ -224,7 +228,8 @@ If the request later:
 
 the buffered logs are replayed before the triggering log event.
 
-This allows applications to keep verbose diagnostics for failing requests without paying the cost of logging every successful request.
+This allows applications to keep verbose diagnostics for failing requests without paying the cost of logging every
+successful request.
 
 Buffer size is configurable.
 
@@ -255,7 +260,8 @@ val loggerF =
   GenericBridgeLogger.fromBridge[IO](bridgeLogger)
 ```
 
-This allows services parameterized over `F[_]` (with a `LiftIO` instance) to use the logger without depending directly on the concrete implementation.
+This allows services parameterized over `F[_]` (with a `LiftIO` instance) to use the logger without depending directly
+on the concrete implementation.
 
 ---
 
@@ -305,14 +311,14 @@ Automatic HTTP integration is provided separately by the `bridges-http4s` module
 # Roadmap
 
 - Full testing suites
-  - sampling and buffering tests
-  - concurrency tests
-  - stress tests
+    - sampling and buffering tests
+    - concurrency tests
+    - stress tests
 - Performance profiling
 - log4cats integration
 - OpenTelemetry
-  - TraceId, SpanId, baggage
+    - TraceId, SpanId, baggage
 - Improve Sampling
-  - adaptive sampline
-  - ruleBased sampling
-  - 
+    - adaptive sampline
+    - ruleBased sampling
+    - 

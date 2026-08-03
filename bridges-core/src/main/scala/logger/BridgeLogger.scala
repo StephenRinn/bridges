@@ -18,15 +18,11 @@
 
 package logger
 
-import cats.effect.Clock
-import cats.effect.IO
-import cats.effect.IOLocal
-import cats.effect.LiftIO
+import cats.effect.{Clock, IO, IOLocal, LiftIO}
 import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
-import logEvent.LogEvent
-import logEvent.LogLevel
+import logEvent.{LogEvent, LogLevel}
 import logEvent.LogLevel._
 import logSink.LogSink
 import scala.math.Ordered.orderingToOrdered
@@ -96,43 +92,46 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
-  private def shouldBuffer(
-      param: LogEvent,
-      fa: LogEvent => IO[Unit],
-  ): IO[Unit] = {
-    contextOps.get.flatMap { storage =>
-      val isSampled = storage.sampled.contains(true)
-      val meetsMinLevel = bridgeLoggerConfig.minLevel <= param.level
-      // Handle special case of error first
-      if (param.level == Error) {
-        for {
-          _ <- rebuildAndPrint(param, storage, fa)
-          _ <- contextOps.setSampled(true)
-        } yield ()
-        // Check for sampled and if we log all levels for samples
-      } else if (isSampled && (bridgeLoggerConfig.sampleBelowMinLevel || meetsMinLevel)) {
-        fa(param)
-        // If we haven't checked sampling yet do so if the log is at least the minimum level
-      } else if (storage.sampled.isEmpty && meetsMinLevel) {
-        val sampled = bridgeLoggerConfig.sampleRate > Random.between(0f, 1f)
-        contextOps.setSampled(sampled).flatMap { _ =>
-          if (sampled) {
-            rebuildAndPrint(param, storage, fa)
-          } else IO.unit
-        }
-        // Check if sampled or if it's just above min level
-      } else if (isSampled || meetsMinLevel) {
-        storage.rebuildLog match {
-          case Nil => fa(param)
-          case _ => rebuildAndPrint(param, storage, fa)
-        }
-        // Default case
-      } else {
-        if (!meetsMinLevel && bridgeLoggerConfig.bufferBelowMinLevel) {
-          contextOps.updateRebuildLog(param, param.level)
-        } else { IO.unit }
+  private def sampleEligible: IO[Boolean] = {
+    for {
+      storage <- contextOps.get
+      sample <-
+        if (storage.sampled.isEmpty) {
+          val sampled = Random.between(0.0f, 1.0f) < bridgeLoggerConfig.sampleRate
+          for {
+            _ <- contextOps.setSampled(sampled)
+          } yield sampled
+        } else IO(storage.sampled.get)
+    } yield sample
+
+  }
+
+  private def emitEligible(param: LogEvent): Boolean = {
+    param.level >= bridgeLoggerConfig.minLevel
+  }
+
+  private def bufferDumpEligible(param: LogEvent): Boolean = {
+    param.level >= bridgeLoggerConfig.replayAllLogLevel
+  }
+
+  private def evaluateLog(param: LogEvent, fa: LogEvent => IO[Unit]): IO[Unit] = {
+    for {
+      storage <- contextOps.get
+      sampled <- sampleEligible
+      bufferDump = bufferDumpEligible(param)
+      emit = emitEligible(param)
+      _ <- (sampled, bufferDump, emit) match {
+        case (true, true, _) => rebuildAndPrint(param, storage, fa)
+        case (true, _, true) =>
+          for {
+            _ <- contextOps.updateRebuildLog(param, param.level)
+            _ <- fa(param)
+          } yield ()
+        case (_, true, _) => rebuildAndPrint(param, storage, fa)
+        case (_, _, true) => fa(param)
+        case _ => contextOps.updateRebuildLog(param, param.level)
       }
-    }
+    } yield ()
   }
 
   private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
@@ -150,7 +149,7 @@ final class BridgeLoggerImpl(
   override def trace(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Trace)
-      _ <- shouldBuffer(event, sink.trace)
+      _ <- evaluateLog(event, sink.trace)
     } yield ()
   }
 
@@ -164,7 +163,7 @@ final class BridgeLoggerImpl(
   override def debug(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Debug)
-      _ <- shouldBuffer(event, sink.debug)
+      _ <- evaluateLog(event, sink.debug)
     } yield ()
   }
 
@@ -178,7 +177,7 @@ final class BridgeLoggerImpl(
   override def info(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Info)
-      _ <- shouldBuffer(event, sink.info)
+      _ <- evaluateLog(event, sink.info)
     } yield ()
   }
 
@@ -192,7 +191,7 @@ final class BridgeLoggerImpl(
   override def warn(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Warn)
-      _ <- shouldBuffer(event, sink.warn)
+      _ <- evaluateLog(event, sink.warn)
     } yield ()
   }
 
@@ -206,7 +205,7 @@ final class BridgeLoggerImpl(
   override def error(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Error)
-      _ <- shouldBuffer(event, sink.error)
+      _ <- evaluateLog(event, sink.error)
     } yield ()
   }
 
@@ -220,7 +219,7 @@ final class BridgeLoggerImpl(
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
       event <- toEvent(msg, Error, Some(e))
-      _ <- shouldBuffer(event, sink.error)
+      _ <- evaluateLog(event, sink.error)
     } yield ()
   }
 
@@ -239,7 +238,12 @@ final class BridgeLoggerImpl(
   )(fa: IO[A]): IO[A] = {
     val storage = IOStorage.empty
     val updated =
-      storage.copy(requestId = requestId, correlationId = correlationId, values = values, sampled = sampleRequest)
+      storage.copy(
+        requestId = requestId,
+        correlationId = correlationId,
+        values = values,
+        sampled = sampleRequest,
+      )
     withRequestInternal(updated)(fa)
   }
 
@@ -295,6 +299,7 @@ object BridgeLogger {
 
   case class builder(
       minLevel: LogLevel = Info,
+      replayAllLogsLevel: LogLevel = Warn,
       sampleRate: Float = 1.0f,
       sampleIncludesBelowMinLevel: Boolean = false,
       bufferMessagesBelowMinLevel: Boolean = false,
@@ -315,6 +320,7 @@ object BridgeLogger {
     private def toBridgeLoggerConfig: BridgeLoggerConfig = {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
+        replayAllLogLevel = this.replayAllLogsLevel,
         sampleRate = this.sampleRate,
         sampleBelowMinLevel = this.sampleIncludesBelowMinLevel,
         bufferBelowMinLevel = this.bufferMessagesBelowMinLevel,

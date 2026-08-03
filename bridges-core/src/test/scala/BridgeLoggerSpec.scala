@@ -10,7 +10,11 @@ class BridgeLoggerSpec extends CatsEffectSuite {
   private def setup: IO[(IOLocal[IOStorage], TestLogSink, BridgeLoggerImpl)] = {
     val bridgeConfig = BridgeLoggerConfig.default
     val updatedBridgeConfig =
-      bridgeConfig.copy(sampleBelowMinLevel = true, bufferBelowMinLevel = true)
+      bridgeConfig.copy(
+        sampleBelowMinLevel = true,
+        bufferBelowMinLevel = true,
+        replayAllLogLevel = Info,
+      )
     for {
       storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create

@@ -19,10 +19,11 @@
 package logger
 
 import logEvent.LogLevel
-import logEvent.LogLevel.Info
+import logEvent.LogLevel._
 
 case class BridgeLoggerConfig(
     minLevel: LogLevel = Info,
+    replayAllLogLevel: LogLevel = Warn,
     sampleRate: Float = 1.0f,
     sampleBelowMinLevel: Boolean = false,
     bufferBelowMinLevel: Boolean = false,

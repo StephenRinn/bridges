@@ -10,8 +10,8 @@ ThisBuild / scalaVersion := "2.13.18"
 ThisBuild / scmInfo := Some(
   ScmInfo(
     url("https://github.com/StephenRinn/bridges"),
-    "scm:git:https://github.com/StephenRinn/bridges.git"
-  )
+    "scm:git:https://github.com/StephenRinn/bridges.git",
+  ),
 )
 
 ThisBuild / licenses += "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
@@ -33,8 +33,8 @@ ThisBuild / headerLicense := Some(
        | * See the License for the specific language governing permissions and
        | * limitations under the License.
        | */
-       |""".stripMargin
-  )
+       |""".stripMargin,
+  ),
 )
 
 val http4sVersion = "0.23.34"
@@ -45,8 +45,8 @@ ThisBuild / developers := List(
     id = "StephenRinn",
     name = "Stephen Rinn",
     email = "",
-    url = url("https://github.com/StephenRinn")
-  )
+    url = url("https://github.com/StephenRinn"),
+  ),
 )
 
 lazy val commonSettings = Seq(

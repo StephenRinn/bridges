@@ -22,8 +22,8 @@ import contextStorage.ContextOperations
 import logSink.LogSink
 import logger.BridgeLoggerConfig
 
-case class BridgeRuntime (
+case class BridgeRuntime(
     context: ContextOperations,
     sink: LogSink,
-    config: BridgeLoggerConfig
-                         )
+    config: BridgeLoggerConfig,
+)

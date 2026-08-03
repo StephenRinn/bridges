@@ -22,7 +22,6 @@ import cats.effect.IO
 import java.util.UUID
 import logger.BridgeLogger
 
-
 object Bridge {
   @volatile
   private var logger: BridgeLogger = _
@@ -64,14 +63,15 @@ object Bridge {
 
   def error(msg: String, e: Throwable): IO[Unit] = logger.error(msg, e)
 
-  def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = logger.error(msg, e, values)
+  def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] =
+    logger.error(msg, e, values)
 
   def withRequest[A](
-                      values: Map[String, String] = Map[String, String](),
-                      sampleRequest: Option[Boolean] = None,
-                      correlationId: String = UUID.randomUUID().toString,
-                      requestId: String = UUID.randomUUID().toString,
-                    )(fa: IO[A]): IO[A] = logger.withRequest[A](values, sampleRequest, correlationId, requestId)(fa)
+      values: Map[String, String] = Map[String, String](),
+      sampleRequest: Option[Boolean] = None,
+      correlationId: String = UUID.randomUUID().toString,
+      requestId: String = UUID.randomUUID().toString,
+  )(fa: IO[A]): IO[A] = logger.withRequest[A](values, sampleRequest, correlationId, requestId)(fa)
 
   def updateValues(key: String, value: String): IO[Unit] = logger.updateValues(key, value)
 
