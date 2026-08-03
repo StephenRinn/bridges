@@ -21,17 +21,6 @@ jobs:
 
       - uses: sbt/setup-sbt@v1
 
-      - name: Check GPG
-        run: |
-          echo "${{ secrets.PGP_SECRET }}" | head -c 50
-          echo 
-          gpg --list-secret-keys --keyid-format LONG
-
-      - name: Validate GPG secret
-        run: |
-          echo "${{ secrets.PGP_SECRET }}" | gpg --batch --import-options show-only --import
-          
-
       - name: Release
         run: sbt ci-release
         env:
