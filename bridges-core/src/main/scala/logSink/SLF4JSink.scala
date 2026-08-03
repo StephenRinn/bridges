@@ -2,7 +2,8 @@ package logSink
 
 import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
-import logEvent.{LogEvent, LogLevel}
+import logEvent.LogEvent
+import logEvent.LogLevel
 
 class SLF4JSink extends LogSink with LazyLogging {
 
@@ -15,15 +16,18 @@ class SLF4JSink extends LogSink with LazyLogging {
         s"[values=$kVString] "
       }
 
-    val throwO = if (logEvent.throwable.isEmpty) "" else {
-      s"[Error=${logEvent.throwable.get}]"
-    }
+    val throwO =
+      if (logEvent.throwable.isEmpty) ""
+      else {
+        s"[Error=${logEvent.throwable.get}]"
+      }
 
     val duration = (ctx.endTime, ctx.startTime) match {
       case (Some(end), Some(start)) => Some(end - start)
       case _ => None
     }
-    s"""[timestamp=${System.currentTimeMillis()}] [level=${logEvent.level}] [cid=${ctx.correlationId}]
+    s"""[timestamp=${System
+        .currentTimeMillis()}] [level=${logEvent.level}] [cid=${ctx.correlationId}]
        | [rid=${ctx.requestId}] [duration=$duration] $values[message=${logEvent.message}] $throwO""".stripMargin
   }
 

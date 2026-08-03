@@ -163,19 +163,14 @@ class BridgeMiddlewareSpec extends CatsEffectSuite {
 
         assertEquals(
           corrIds.toSet,
-          Set(
-            "corr-1",
-            "corr-2",
-            "corr-3",
-            "corr-4",
-            "corr-5")
+          Set("corr-1", "corr-2", "corr-3", "corr-4", "corr-5"),
         )
       }
     }
   }
 
   test("logger writes completion event for successful request") {
-    setup.flatMap{ case (_,sink,logger) =>
+    setup.flatMap { case (_, sink, logger) =>
       val app = BridgeMiddleware(logger) {
         HttpApp(_ => Ok())
       }
@@ -190,7 +185,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite {
   }
 
   test("logger writes completion event for successful request") {
-    setup.flatMap{ case (_,sink,logger) =>
+    setup.flatMap { case (_, sink, logger) =>
       val app = BridgeMiddleware(logger) {
         HttpApp(_ => IO.raiseError[Response[IO]](new RuntimeException("expected failure")))
       }

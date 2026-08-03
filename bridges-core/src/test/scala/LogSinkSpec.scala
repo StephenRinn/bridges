@@ -1,9 +1,13 @@
-import cats.effect.{IO, IOLocal}
+import cats.effect.IO
+import cats.effect.IOLocal
 import cats.implicits.catsSyntaxParallelTraverse_
-import contextStorage.{IOStorage, RebuildLog}
-import logger.{BridgeLogger, BridgeLoggerImpl}
+import contextStorage.IOStorage
+import contextStorage.RebuildLog
+import logger.BridgeLogger
+import logger.BridgeLoggerImpl
 import munit.CatsEffectSuite
-import util.{LogEntry, TestLogSink}
+import util.LogEntry
+import util.TestLogSink
 
 class LogSinkSpec extends CatsEffectSuite {
   test("Logger should include correlation id") {
@@ -11,7 +15,7 @@ class LogSinkSpec extends CatsEffectSuite {
     for {
       storage <- IOLocal(IOStorage.empty)
 
-      sink    <- TestLogSink.create
+      sink <- TestLogSink.create
 
       logger = new BridgeLoggerImpl(storage, sink)
 
@@ -27,11 +31,11 @@ class LogSinkSpec extends CatsEffectSuite {
       assert(storageEnd.correlationId == "abc")
     }
   }
-  test("updates are applied"){
+  test("updates are applied") {
     for {
       storage <- IOLocal(IOStorage.empty)
 
-      sink    <- TestLogSink.create
+      sink <- TestLogSink.create
 
       logger = new BridgeLoggerImpl(storage, sink)
 
@@ -48,7 +52,7 @@ class LogSinkSpec extends CatsEffectSuite {
     }
   }
 
-  test("correlationId is propagated across fibers"){
+  test("correlationId is propagated across fibers") {
     for {
       storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create
@@ -81,8 +85,8 @@ class LogSinkSpec extends CatsEffectSuite {
         _ <- storage.update(
           _.copy(
             correlationId = s"corr-$id",
-            requestId = s"req-$id"
-          )
+            requestId = s"req-$id",
+          ),
         )
 
         _ <- List
@@ -99,52 +103,51 @@ class LogSinkSpec extends CatsEffectSuite {
         request(2),
         request(3),
         request(4),
-        request(5)
+        request(5),
       ).parSequence
 
     } yield {
 
-      results.zipWithIndex.foreach {
-        case (logs, index) =>
+      results.zipWithIndex.foreach { case (logs, index) =>
+        val id = index + 1
 
-          val id = index + 1
+        assertEquals(logs.size, 10)
 
-          assertEquals(logs.size, 10)
+        assert(
+          logs.forall(
+            _.message.contains(s"corr-$id"),
+          ),
+        )
 
-          assert(
-            logs.forall(
-              _.message.contains(s"corr-$id")
-            )
-          )
-
-          assert(
-            logs.forall(
-              _.message.contains(s"req-$id")
-            )
-          )
+        assert(
+          logs.forall(
+            _.message.contains(s"req-$id"),
+          ),
+        )
       }
     }
   }
   test("parallel requests remain isolated") {
 
     def request(
-                 id: Int,
-                 storage: IOLocal[IOStorage],
-                 logger: BridgeLogger
-               ): IO[Unit] =
+        id: Int,
+        storage: IOLocal[IOStorage],
+        logger: BridgeLogger,
+    ): IO[Unit] =
       storage.set(
         IOStorage(
           requestId = s"req-$id",
           correlationId = s"corr-$id",
           values = Map.empty,
-          startTime = None, endTime = None,
+          startTime = None,
+          endTime = None,
           sampled = None,
-          rebuildLog = List[RebuildLog]().empty
-        )
+          rebuildLog = List[RebuildLog]().empty,
+        ),
       ) *>
         List
           .fill(10)(
-            IO.cede *> logger.info(s"processing-$id") *> IO.cede
+            IO.cede *> logger.info(s"processing-$id") *> IO.cede,
           )
           .parSequence_
 
@@ -160,7 +163,7 @@ class LogSinkSpec extends CatsEffectSuite {
         request(2, storage, logger),
         request(3, storage, logger),
         request(4, storage, logger),
-        request(5, storage, logger)
+        request(5, storage, logger),
       ).parSequence
 
       logs <- sink.messages
@@ -177,8 +180,8 @@ class LogSinkSpec extends CatsEffectSuite {
 
         assert(
           requestLogs.forall(
-            _.message.contains(s"corr-$id")
-          )
+            _.message.contains(s"corr-$id"),
+          ),
         )
       }
     }
@@ -189,27 +192,27 @@ class LogSinkSpec extends CatsEffectSuite {
     val LogsPerRequest = 20
 
     def request(
-                 id: Int,
-                 storage: IOLocal[IOStorage],
-                 logger: BridgeLogger
-               ): IO[Unit] =
+        id: Int,
+        storage: IOLocal[IOStorage],
+        logger: BridgeLogger,
+    ): IO[Unit] =
       for {
         _ <- storage.set(
           IOStorage(
             requestId = s"req-$id",
             correlationId = s"corr-$id",
             values = Map.empty,
-            startTime = None, endTime = None,
+            startTime = None,
+            endTime = None,
             sampled = None,
-            rebuildLog = List[RebuildLog]().empty
-          )
+            rebuildLog = List[RebuildLog]().empty,
+          ),
         )
 
         _ <- List
           .fill(LogsPerRequest)(
-            (IO.cede *> logger.info(s"request-$id") *> IO.cede)
-              .start
-              .flatMap(_.joinWithNever)
+            (IO.cede *> logger.info(s"request-$id") *> IO.cede).start
+              .flatMap(_.joinWithNever),
           )
           .parSequence_
 
@@ -222,8 +225,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
       logger = new BridgeLoggerImpl(storage, sink)
 
-      _ <- (1 to RequestCount)
-        .toList
+      _ <- (1 to RequestCount).toList
         .parTraverse_(request(_, storage, logger))
 
       logs <- sink.messages
@@ -233,21 +235,20 @@ class LogSinkSpec extends CatsEffectSuite {
       assertEquals(logs.size, RequestCount * LogsPerRequest)
 
       (1 to RequestCount).foreach { id =>
-
         val requestLogs =
           logs.filter(_.message.contains(s"req-$id,"))
 
         assertEquals(
           requestLogs.size,
           LogsPerRequest,
-          s"Incorrect number of logs for request $id"
+          s"Incorrect number of logs for request $id",
         )
 
         assert(
           requestLogs.forall(
-            _.message.contains(s"corr-$id")
+            _.message.contains(s"corr-$id"),
           ),
-          s"Correlation id mismatch for request $id"
+          s"Correlation id mismatch for request $id",
         )
       }
     }

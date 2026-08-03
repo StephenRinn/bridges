@@ -42,7 +42,8 @@ final class BridgeLoggerImpl(
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
-  private val contextOps: ContextOperations = new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
+  private val contextOps: ContextOperations =
+    new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
 
   private def toEvent(
       message: String,
@@ -90,7 +91,7 @@ final class BridgeLoggerImpl(
           _ <- contextOps.setSampled(true)
         } yield ()
         // Check for sampled and if we log all levels for samples
-      } else if (isSampled && (bridgeLoggerConfig.sampleBelowMinLevel || meetsMinLevel)){
+      } else if (isSampled && (bridgeLoggerConfig.sampleBelowMinLevel || meetsMinLevel)) {
         fa(param)
         // If we haven't checked sampling yet do so if the log is at least the minimum level
       } else if (storage.sampled.isEmpty && meetsMinLevel) {

@@ -1,25 +1,27 @@
-import cats.effect.{IO, IOLocal}
+import cats.effect.IO
+import cats.effect.IOLocal
 import contextStorage.IOStorage
-import logEvent.LogLevel.{Debug, Trace}
-import logger.{BridgeLoggerConfig, BridgeLoggerImpl}
+import logEvent.LogLevel._
+import logger.BridgeLoggerConfig
+import logger.BridgeLoggerImpl
 import munit.CatsEffectSuite
 import util.TestLogSink
 
 class BridgeLoggerSpec extends CatsEffectSuite {
 
-  private def setup:IO[(IOLocal[IOStorage], TestLogSink, BridgeLoggerImpl)] = {
+  private def setup: IO[(IOLocal[IOStorage], TestLogSink, BridgeLoggerImpl)] = {
     val bridgeConfig = BridgeLoggerConfig.default
-    val updatedBridgeConfig = bridgeConfig.copy(sampleBelowMinLevel = true, bufferBelowMinLevel = true)
-      for {
-            storage <- IOLocal(IOStorage.empty)
-            sink <- TestLogSink.create
-            logger = new BridgeLoggerImpl(storage, sink, bridgeLoggerConfig = updatedBridgeConfig)
-          } yield (storage, sink, logger)
+    val updatedBridgeConfig =
+      bridgeConfig.copy(sampleBelowMinLevel = true, bufferBelowMinLevel = true)
+    for {
+      storage <- IOLocal(IOStorage.empty)
+      sink <- TestLogSink.create
+      logger = new BridgeLoggerImpl(storage, sink, bridgeLoggerConfig = updatedBridgeConfig)
+    } yield (storage, sink, logger)
   }
 
-
   test("correctly stores log history for below level logs") {
-    setup.flatMap{ case (storage, sink, logger) =>
+    setup.flatMap { case (_, sink, logger) =>
       for {
         beforeStorage <- logger.getStorage
         _ <- logger.debug("This is a debug test")

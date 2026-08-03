@@ -15,7 +15,7 @@ class IOStorageSpec extends CatsEffectSuite {
             values = Map(),
             startTime = Some(25L),
             endTime = Some(30L),
-          )
+          ),
         ) >> storage.get).start
 
       fiber2 <- (storage.set(

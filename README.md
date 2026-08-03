@@ -2,7 +2,8 @@
 
 # Fiber-Local Logging Context (Cats Effect)
 
-A lightweight logging + request-context library built on **Cats Effect `IO` + `IOLocal`**, designed for server applications that need:
+A lightweight logging + request-context library built on **Cats Effect `IO` + `IOLocal`**, designed for server
+applications that need:
 
 * per-request correlation IDs
 * fiber-safe contextual logging
@@ -14,7 +15,8 @@ A lightweight logging + request-context library built on **Cats Effect `IO` + `I
 
 ## Overview
 
-This library provides a **fiber-local request context** that automatically follows execution across async boundaries in Cats Effect.
+This library provides a **fiber-local request context** that automatically follows execution across async boundaries in
+Cats Effect.
 
 Each request runs in its own fiber with its own isolated context:
 

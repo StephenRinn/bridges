@@ -1,35 +1,40 @@
 package contextStorage
 
-import cats.effect.{IO, IOLocal}
-import logEvent.{LogEvent, LogLevel}
+import cats.effect.IO
+import cats.effect.IOLocal
+import logEvent.LogEvent
+import logEvent.LogLevel
 
-final class ContextOperations(private val local: IOLocal[IOStorage], private val maxBuffer: Int = 200) {
+final class ContextOperations(
+    private val local: IOLocal[IOStorage],
+    private val maxBuffer: Int = 200,
+) {
   def modify(f: IOStorage => IOStorage): IO[Unit] = local.update(f)
 
   def clear: IO[Unit] = local.set(IOStorage.empty)
 
   def setCorrelation(id: String): IO[Unit] = { local.update(_.copy(correlationId = id)) }
 
-  def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId))}
+  def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId)) }
 
   def updateValues(key: String, value: String): IO[Unit] = {
-    local.modify{ storage =>
+    local.modify { storage =>
       val updated = storage.values + (key -> value)
       (storage.copy(values = updated), ())
     }
   }
 
-  def updateValues(updatedValues: Map[String,String]): IO[Unit] = {
-    local.modify{ storage =>
+  def updateValues(updatedValues: Map[String, String]): IO[Unit] = {
+    local.modify { storage =>
       val updated = storage.values ++ updatedValues
       (storage.copy(values = updated), ())
     }
   }
 
   def updateRebuildLog(event: LogEvent, level: LogLevel): IO[Unit] = {
-    local.modify{ storage =>
+    local.modify { storage =>
       val updated = storage.rebuildLog :+ RebuildLog(event, level)
-      if(updated.size <= maxBuffer){
+      if (updated.size <= maxBuffer) {
         (storage.copy(rebuildLog = updated), ())
       } else {
         (storage.copy(rebuildLog = updated.tail), ())

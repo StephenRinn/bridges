@@ -7,7 +7,5 @@ case class LogEvent(
     message: String,
     timestamp: Long,
     context: IOStorage,
-    throwable: Option[Throwable] = None
-                   )
-
-
+    throwable: Option[Throwable] = None,
+)

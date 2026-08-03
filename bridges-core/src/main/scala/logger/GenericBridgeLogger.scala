@@ -17,7 +17,7 @@ trait GenericBridgeLogger[F[_]] {
 object GenericBridgeLogger {
 
   def fromBridge[F[_]: LiftIO](bridge: BridgeLogger): GenericBridgeLogger[F] = {
-    new GenericBridgeLogger[F]{
+    new GenericBridgeLogger[F] {
 
       override def trace(msg: String): F[Unit] = {
         LiftIO[F].liftIO(bridge.trace(msg))

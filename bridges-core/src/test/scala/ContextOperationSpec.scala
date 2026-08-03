@@ -1,5 +1,8 @@
-import cats.effect.{Clock, IO, IOLocal}
-import contextStorage.{ContextOperations, IOStorage}
+import cats.effect.Clock
+import cats.effect.IO
+import cats.effect.IOLocal
+import contextStorage.ContextOperations
+import contextStorage.IOStorage
 import munit.CatsEffectSuite
 
 class ContextOperationSpec extends CatsEffectSuite {
@@ -13,7 +16,7 @@ class ContextOperationSpec extends CatsEffectSuite {
 
   test("Context Operations sets an empty storage") {
     contextOps { ctx =>
-      ctx.get.map{ request =>
+      ctx.get.map { request =>
         assertEquals(request.requestId, "")
         assertEquals(request.correlationId, "")
         assertEquals(request.startTime, None)
