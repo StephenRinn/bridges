@@ -3,7 +3,7 @@ package contextStorage
 import cats.effect.{IO, IOLocal}
 import logEvent.{LogEvent, LogLevel}
 
-final class ContextOperations(private val local: IOLocal[IOStorage], private val maxBuffer: Int) {
+final class ContextOperations(private val local: IOLocal[IOStorage], private val maxBuffer: Int = 200) {
   def modify(f: IOStorage => IOStorage): IO[Unit] = local.update(f)
 
   def clear: IO[Unit] = local.set(IOStorage.empty)
