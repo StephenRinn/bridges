@@ -8,13 +8,8 @@ final case class IOStorage(
     values: Map[String, String],
     startTime: Option[Long],
     endTime: Option[Long],
-    sampleData: SampleData,
+    sampled: Option[Boolean],
     rebuildLog: List[RebuildLog],
-)
-
-final case class SampleData(
-    sampleRate: Option[Float],
-    sampleVal: Option[Float],
 )
 
 final case class RebuildLog(
@@ -30,7 +25,7 @@ object IOStorage {
       Map[String, String](),
       None,
       None,
-      SampleData(None, None),
+      sampled = None,
       List[RebuildLog]().empty,
     )
 }

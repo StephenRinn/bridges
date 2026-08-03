@@ -21,5 +21,4 @@ object LogLevel {
   }
 
   implicit val levelOrdering: Ordering[LogLevel] = Ordering.by(_.level)
-
 }

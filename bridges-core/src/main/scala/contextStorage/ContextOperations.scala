@@ -30,6 +30,10 @@ final class ContextOperations(private val local: IOLocal[IOStorage]) {
     local.update(_.copy(rebuildLog = List[RebuildLog]().empty))
   }
 
+  def setSampled(sampled: Boolean): IO[Unit] = {
+    local.update(_.copy(sampled = Some(sampled)))
+  }
+
   def markStart(startTime: Long): IO[Unit] = {
     local.update(_.copy(startTime = Some(startTime)))
   }

@@ -12,6 +12,7 @@ import logEvent.LogLevel
 import logEvent.LogLevel._
 import logSink.LogSink
 import scala.math.Ordered.orderingToOrdered
+import scala.util.Random
 
 trait BridgeLogger {
   def trace(msg: String): IO[Unit]
@@ -75,24 +76,31 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
-  private def sampler(param: LogEvent, fa: LogEvent => IO[Unit]): IO[Unit] = {
-    if (param.level > bridgeLoggerConfig.minLevel) {
-      for {
-        storage <- contextOps.get
-        _ <- rebuildAndPrint(param, storage, fa)
-      } yield ()
-    } else if (bridgeLoggerConfig.minLevel.level == param.level.level) {
-      contextOps.get.flatMap { storage =>
-        storage.sampleData match {
-          case SampleData(Some(rate), Some(det)) if rate > det =>
+  private def shouldBuffer(
+      param: LogEvent,
+      fa: LogEvent => IO[Unit],
+  ): IO[Unit] = {
+    contextOps.get.flatMap { storage =>
+      if (
+        storage.sampled.isEmpty && bridgeLoggerConfig.sampleRate != 1.0f && param.level == bridgeLoggerConfig.minLevel
+      ) {
+        val sampled = bridgeLoggerConfig.sampleRate > Random.between(0f, 1f)
+        contextOps.setSampled(sampled).flatMap { _ =>
+          if (sampled) {
             rebuildAndPrint(param, storage, fa)
-          case SampleData(Some(_), Some(_)) =>
-            contextOps.updateRebuildLog(event = param, level = param.level)
-          case _ => rebuildAndPrint(param, storage, fa)
+          } else {
+            contextOps.updateRebuildLog(param, param.level)
+          }
         }
+      } else if (storage.sampled.contains(true)) {
+        rebuildAndPrint(param, storage, fa)
+      } else if (param.level == Error) {
+        rebuildAndPrint(param, storage, fa)
+      } else {
+        if (bridgeLoggerConfig.minLevel >= param.level && bridgeLoggerConfig.repopulateAll) {
+          contextOps.updateRebuildLog(param, param.level)
+        } else { IO() }
       }
-    } else {
-      contextOps.updateRebuildLog(event = param, level = param.level)
     }
   }
 
@@ -111,7 +119,7 @@ final class BridgeLoggerImpl(
   override def trace(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Trace)
-      _ <- sampler(event, sink.trace)
+      _ <- shouldBuffer(event, sink.trace)
     } yield ()
   }
 
@@ -126,7 +134,7 @@ final class BridgeLoggerImpl(
   override def debug(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Debug)
-      _ <- sampler(event, sink.debug)
+      _ <- shouldBuffer(event, sink.debug)
     } yield ()
   }
 
@@ -141,7 +149,7 @@ final class BridgeLoggerImpl(
   override def info(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Info)
-      _ <- sampler(event, sink.info)
+      _ <- shouldBuffer(event, sink.info)
     } yield ()
   }
 
@@ -156,7 +164,7 @@ final class BridgeLoggerImpl(
   override def warn(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Warn)
-      _ <- sampler(event, sink.warn)
+      _ <- shouldBuffer(event, sink.warn)
     } yield ()
   }
 
@@ -171,7 +179,7 @@ final class BridgeLoggerImpl(
   override def error(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Error)
-      _ <- sampler(event, sink.error)
+      _ <- shouldBuffer(event, sink.error)
     } yield ()
   }
 
@@ -186,7 +194,7 @@ final class BridgeLoggerImpl(
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
       event <- toEvent(msg, Error, Some(e))
-      _ <- sampler(event, sink.error)
+      _ <- shouldBuffer(event, sink.error)
     } yield ()
   }
 
