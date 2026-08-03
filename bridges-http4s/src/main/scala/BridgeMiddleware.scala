@@ -1,8 +1,7 @@
 import cats.effect.IO
 import java.util.UUID
 import logger.BridgeLogger
-import org.http4s.Header
-import org.http4s.HttpApp
+import org.http4s.{Header, HttpApp}
 import org.typelevel.ci.CIStringSyntax
 
 object BridgeMiddleware {

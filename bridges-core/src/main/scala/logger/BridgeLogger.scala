@@ -1,14 +1,10 @@
 package logger
 
-import cats.effect.Clock
-import cats.effect.IO
-import cats.effect.IOLocal
-import cats.effect.LiftIO
+import cats.effect.{Clock, IO, IOLocal, LiftIO}
 import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
-import logEvent.LogEvent
-import logEvent.LogLevel
+import logEvent.{LogEvent, LogLevel}
 import logEvent.LogLevel._
 import logSink.LogSink
 import scala.math.Ordered.orderingToOrdered

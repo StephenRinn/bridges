@@ -2,8 +2,7 @@ package logSink
 
 import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
-import logEvent.LogEvent
-import logEvent.LogLevel
+import logEvent.{LogEvent, LogLevel}
 
 class SLF4JSink extends LogSink with LazyLogging {
 

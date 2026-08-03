@@ -1,9 +1,7 @@
 package contextStorage
 
-import cats.effect.IO
-import cats.effect.IOLocal
-import logEvent.LogEvent
-import logEvent.LogLevel
+import cats.effect.{IO, IOLocal}
+import logEvent.{LogEvent, LogLevel}
 
 final class ContextOperations(
     private val local: IOLocal[IOStorage],

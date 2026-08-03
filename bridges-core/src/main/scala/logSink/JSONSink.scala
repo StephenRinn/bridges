@@ -1,8 +1,7 @@
 package logSink
 
 import cats.effect.IO
-import io.circe.Encoder
-import io.circe.Json
+import io.circe.{Encoder, Json}
 import io.circe.syntax.EncoderOps
 import logEvent.LogEvent
 import logSink.JsonHelpers._

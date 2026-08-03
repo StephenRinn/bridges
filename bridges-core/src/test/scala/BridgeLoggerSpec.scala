@@ -1,9 +1,7 @@
-import cats.effect.IO
-import cats.effect.IOLocal
+import cats.effect.{IO, IOLocal}
 import contextStorage.IOStorage
 import logEvent.LogLevel._
-import logger.BridgeLoggerConfig
-import logger.BridgeLoggerImpl
+import logger.{BridgeLoggerConfig, BridgeLoggerImpl}
 import munit.CatsEffectSuite
 import util.TestLogSink
 

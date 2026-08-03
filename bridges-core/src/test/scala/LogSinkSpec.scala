@@ -1,13 +1,9 @@
-import cats.effect.IO
-import cats.effect.IOLocal
+import cats.effect.{IO, IOLocal}
 import cats.implicits.catsSyntaxParallelTraverse_
-import contextStorage.IOStorage
-import contextStorage.RebuildLog
-import logger.BridgeLogger
-import logger.BridgeLoggerImpl
+import contextStorage.{IOStorage, RebuildLog}
+import logger.{BridgeLogger, BridgeLoggerImpl}
 import munit.CatsEffectSuite
-import util.LogEntry
-import util.TestLogSink
+import util.{LogEntry, TestLogSink}
 
 class LogSinkSpec extends CatsEffectSuite {
   test("Logger should include correlation id") {

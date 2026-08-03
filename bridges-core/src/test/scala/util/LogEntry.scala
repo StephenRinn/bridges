@@ -1,7 +1,6 @@
 package util
 
-import cats.effect.IO
-import cats.effect.Ref
+import cats.effect.{IO, Ref}
 import logEvent.LogLevel._
 import logEvent._
 import logSink.LogSink
