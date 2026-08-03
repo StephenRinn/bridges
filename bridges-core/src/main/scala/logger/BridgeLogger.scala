@@ -42,7 +42,7 @@ final class BridgeLoggerImpl(
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
-  private val contextOps: ContextOperations = new ContextOperations(ioStorage)
+  private val contextOps: ContextOperations = new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
 
   private def toEvent(
       message: String,
@@ -81,28 +81,31 @@ final class BridgeLoggerImpl(
       fa: LogEvent => IO[Unit],
   ): IO[Unit] = {
     contextOps.get.flatMap { storage =>
-      if (storage.sampled.contains(true) && (bridgeLoggerConfig.sampleBelowMinLevel || bridgeLoggerConfig.minLevel <= param.level)){
-        fa(param)
-      } else if (storage.sampled.isEmpty && bridgeLoggerConfig.sampleRate != 1.0f && param.level == bridgeLoggerConfig.minLevel) {
-        val sampled = bridgeLoggerConfig.sampleRate > Random.between(0f, 1f)
-        contextOps.setSampled(sampled).flatMap { _ =>
-          if (sampled && bridgeLoggerConfig.minLevel <= param.level) {
-            rebuildAndPrint(param, storage, fa)
-          } else if (sampled && bridgeLoggerConfig.bufferBelowMinLevel){
-            contextOps.updateRebuildLog(param, param.level)
-          } else IO()
-        }
-      } else if (storage.sampled.contains(true)) {
-        rebuildAndPrint(param, storage, fa)
-      } else if (param.level == Error) {
+      val isSampled = storage.sampled.contains(true)
+      val meetsMinLevel = bridgeLoggerConfig.minLevel <= param.level
+      if (param.level == Error) {
         for {
           _ <- rebuildAndPrint(param, storage, fa)
           _ <- contextOps.setSampled(true)
         } yield ()
+      } else if (isSampled && (bridgeLoggerConfig.sampleBelowMinLevel || meetsMinLevel)){
+        fa(param)
+      } else if (storage.sampled.isEmpty && meetsMinLevel) {
+        val sampled = bridgeLoggerConfig.sampleRate > Random.between(0f, 1f)
+        contextOps.setSampled(sampled).flatMap { _ =>
+          if (sampled) {
+            rebuildAndPrint(param, storage, fa)
+          } else IO.unit
+        }
+      } else if (isSampled || meetsMinLevel) {
+        storage.rebuildLog match {
+          case Nil => fa(param)
+          case _ => rebuildAndPrint(param, storage, fa)
+        }
       } else {
-        if (bridgeLoggerConfig.minLevel >= param.level && bridgeLoggerConfig.bufferBelowMinLevel) {
+        if (!meetsMinLevel && bridgeLoggerConfig.bufferBelowMinLevel) {
           contextOps.updateRebuildLog(param, param.level)
-        } else { IO() }
+        } else { IO.unit }
       }
     }
   }
@@ -128,8 +131,7 @@ final class BridgeLoggerImpl(
 
   override def trace(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- contextOps.updateValues(values)
       _ <- trace(msg)
     } yield ()
   }
@@ -143,8 +145,7 @@ final class BridgeLoggerImpl(
 
   override def debug(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- contextOps.updateValues(values)
       _ <- debug(msg)
     } yield ()
   }
@@ -158,8 +159,7 @@ final class BridgeLoggerImpl(
 
   override def info(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- contextOps.updateValues(values)
       _ <- info(msg)
     } yield ()
   }
@@ -173,8 +173,7 @@ final class BridgeLoggerImpl(
 
   override def warn(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- contextOps.updateValues(values)
       _ <- warn(msg)
     } yield ()
   }
@@ -188,8 +187,7 @@ final class BridgeLoggerImpl(
 
   override def error(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- contextOps.updateValues(values)
       _ <- error(msg)
     } yield ()
   }
@@ -203,8 +201,7 @@ final class BridgeLoggerImpl(
 
   override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      _ <- ioStorage.set(storage.copy(values = values))
+      _ <- contextOps.updateValues(values)
       _ <- error(msg, e)
     } yield ()
   }
@@ -222,8 +219,7 @@ final class BridgeLoggerImpl(
 
   private def withRequestInternal[A](newStorage: IOStorage)(fa: IO[A]): IO[A] = {
     val contextSetup = for {
-      _ <- contextOps.setRequest(newStorage.requestId)
-      _ <- contextOps.setCorrelation(newStorage.correlationId)
+      _ <- ioStorage.set(newStorage)
       start <- Clock[IO].realTime
       _ <- contextOps.markStart(start.toMillis)
     } yield ()

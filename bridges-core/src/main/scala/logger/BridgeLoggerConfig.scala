@@ -4,10 +4,11 @@ import logEvent.LogLevel
 import logEvent.LogLevel.Info
 
 case class BridgeLoggerConfig(
+    minLevel: LogLevel = Info,
     sampleRate: Float = 1.0f,
     sampleBelowMinLevel: Boolean = true,
     bufferBelowMinLevel: Boolean = false,
-    minLevel: LogLevel = Info,
+    bufferSize: Int = 200,
 )
 
 object BridgeLoggerConfig {
