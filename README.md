@@ -21,11 +21,11 @@ The module is intentionally backend-agnostic. Log events are produced by `Bridge
     - Warn
     - Error
 - Pluggable logging sinks
-- Automatic request lifecycle helper
+- Automatic request lifecycle tracking
 - Configurable log sampling
-- Buffered low-level logs with automatic replay on sampled requests or errors
-- Generic `F[_]` adapter for projects that use `Async`, `Sync`, or another Cats Effect datatype
-- Ergonomic runtime or Direct dependency injected logger
+- Buffered low-level logs with configurable replay
+- Generic `F[_]` adapter through `LiftIO`
+- Runtime based or dependency-injected logger
 
 ---
 
@@ -60,7 +60,8 @@ bridges-core
 
 ## Bridge
 
-`Bridge` and `BridgeRuntime` is the primary api used for ergonomic logging support.
+`Bridge` provides a runtime-based API for applications that do not want to
+pass a `BridgeLogger` through every layer of their application.
 
 Supported operations include:
 
@@ -74,28 +75,57 @@ Supported operations include:
 - `setCorrelationId`
 - `setRequestId`
 
-Example:
+A logger is initialized once at application startup:
 
 ```scala
-def run = {
-  for {
-    logger <- BridgeLogger.builder().minLevel(Info).build
-    _ <- Bridge.initialize(logger)
-    _ <- Server.run()
-  } yield ExitCode.Success
+object Main extends IOApp.Simple
+  def run = {
+    for {
+      storage <- IOLocal(IOStorage.empty)
+      // Create sink implementation here
+      logger = BridgeLogger.builder().withMinLevel(Info).build(storage, sink)
+      _ <- Bridge.initialize(logger)
+      _ <- Server.run()
+    } yield ()
+  }
 }
 ```
+
+Example:
 
 ```scala
 class Service {
   def foo = {
     for {
       _ <- Bridge.info("Logged with BridgeLogger")
-      _ <-
-    } yield
+    } yield ()
   }
 }
 ```
+
+## Minimum Log Level
+
+`minLevel` defines the boundary between logs that are always emitted and logs
+that are subject to sampling.
+
+For example, with:
+
+```scala
+minLevel = Info
+```
+
+the behavior is:
+
+|Level| Unsampled                               |Sampled|
+|---|-----------------------------------------|---|
+|Trace| buffered if enabled otherwise discarded |emitted if sampleBelowMinLevel is enabled|
+|Debug| buffered if enabled otherwise discarded |emitted if sampleBelowMinLevel is enabled|
+|Info| buffered if enabled otherwise discarded  |emitted|
+|Warn| emitted                                 |emitted|
+|Error| emitted                                 |emitted|
+
+When bufferBelowMinLevel is enabled, logs at or below minLevel can be
+retained for later replay.
 
 ## BridgeLogger
 
@@ -161,6 +191,9 @@ logger.withRequest(
 
 Everything executed inside the block automatically shares the same logging context.
 
+
+`withRequest` also tracks request lifecycle timing and records successful,
+failed, and cancelled completion.
 ---
 
 # Structured Logging
@@ -203,14 +236,28 @@ logger.setCorrelationId(id)
 
 `BridgeLogger` supports request-level sampling.
 
-When a request first emits a log at or above the configured minimum level, a sampling decision is made.
+A sampling decision is made once for each request and stored in the request's
+fiber-local context. The decision may also be supplied explicitly through
+`withRequest`.
 
-If the request is sampled:
+```scala
+logger.withRequest(
+  sampleRequest = Some(true)
+) {
+  service.process()
+}
+```
 
-- subsequent logs continue to be emitted according to configuration
-- previously buffered logs may be replayed
+When no sampling decision is provided, Bridges generates one using the configured
+`SampleRate`. The decision is made once and remains fixed for the lifetime
+of the request.
 
-Sampling behavior is controlled through `BridgeLoggerConfig`.
+For example:
+```scala
+sampleRate = 0.1F
+```
+approximately 10% of the requests will be sampled. Sampling applies to requests
+not individual log events.
 
 ---
 
@@ -218,18 +265,25 @@ Sampling behavior is controlled through `BridgeLoggerConfig`.
 
 One of the distinguishing features of Bridges is buffered replay.
 
-When buffering is enabled, logs below the configured minimum level are temporarily stored instead of immediately
+When buffering is enabled, logs at or below the configured minimum level are temporarily stored instead of immediately
 emitted.
 
-If the request later:
+If the request later reaches the replay level, Bridges replays the buffered logs before emitting the triggering event.
 
-- becomes sampled, or
-- emits an error,
+Example:
+```text
+minLevel = Info
+replayAllLogLevel = Warn
+bufferBelowMinLevel = true
+```
+an unsampled request may produce:
+```text
+Debug -> buffered
+Info -> buffered
+Warn -> replay Debug + Info, then emit Warn
+```
 
-the buffered logs are replayed before the triggering log event.
-
-This allows applications to keep verbose diagnostics for failing requests without paying the cost of logging every
-successful request.
+This allows verbose request context to be retained without emitting it for every request.
 
 Buffer size is configurable.
 
@@ -257,7 +311,7 @@ While `BridgeLogger` itself operates in `IO`, a generic adapter is provided.
 
 ```scala
 val loggerF =
-  GenericBridgeLogger.fromBridge[IO](bridgeLogger)
+  BridgeLogger.lift[F](bridgeLogger)
 ```
 
 This allows services parameterized over `F[_]` (with a `LiftIO` instance) to use the logger without depending directly
@@ -271,10 +325,10 @@ on the concrete implementation.
 
 - minimum log level
 - sampling rate
-- whether low-level logs are buffered
-- whether buffered logs are replayed
-- buffer size
+- whether logs at or below the minimum level are buffered
 - whether sampled requests continue logging below the minimum level
+- log level that triggers buffered replay
+- buffer size
 
 ---
 
@@ -316,9 +370,10 @@ Automatic HTTP integration is provided separately by the `bridges-http4s` module
     - stress tests
 - Performance profiling
 - log4cats integration
-- OpenTelemetry
-    - TraceId, SpanId, baggage
-- Improve Sampling
-    - adaptive sampline
+- OpenTelemetry and otel4s integration
+    - TraceId
+    - SpanId
+    - baggage
+- Improve sampling
+    - adaptive sampling
     - ruleBased sampling
-    - 
