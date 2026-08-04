@@ -111,7 +111,8 @@ final class BridgeLoggerImpl(
   }
 
   private def emitEligible(param: LogEvent, sampled: Boolean): Boolean = {
-    param.level >= bridgeLoggerConfig.minLevel || (sampled && bridgeLoggerConfig.sampleBelowMinLevel)
+    (param.level > bridgeLoggerConfig.minLevel
+    || (sampled && (bridgeLoggerConfig.sampleBelowMinLevel || bridgeLoggerConfig.minLevel == param.level)))
   }
 
   private def bufferDumpEligible(param: LogEvent): Boolean = {
@@ -119,7 +120,7 @@ final class BridgeLoggerImpl(
   }
 
   private def bufferEligible(param: LogEvent): Boolean = {
-    param.level < bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel
+    param.level <= bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel
   }
 
   private def evaluateLog(param: LogEvent, fa: LogEvent => IO[Unit]): IO[Unit] = {
@@ -131,13 +132,11 @@ final class BridgeLoggerImpl(
       buffer = bufferEligible(param)
       _ <- (bufferDump, emit, buffer) match {
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
-        case (_, true, _) =>
-          if (sampled || param.level > bridgeLoggerConfig.minLevel) {
+        case (_, true, false) =>
             for {
               _ <- contextOps.updateRebuildLog(param, param.level)
               _ <- fa(param)
             } yield ()
-          } else IO.unit
         case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
         case _ => IO.unit
       }
