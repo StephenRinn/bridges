@@ -308,33 +308,41 @@ object BridgeLogger {
 
   case class builder(
       minLevel: LogLevel = Info,
-      replayAllLogsLevel: LogLevel = Warn,
+      replayAllLogLevel: LogLevel = Warn,
       sampleRate: Float = 1.0f,
       sampleIncludesBelowMinLevel: Boolean = false,
       bufferMessagesBelowMinLevel: Boolean = false,
       logBufferSize: Int = 200,
   ) {
 
-    /** Custom minimum level which will cause log to emit. If a log does not emit the message will
-      * be stored in a buffer to be replayed if a higher level log is later triggered.
-      *
-      * This is also the level which sampleRate affects so a min level of Info will only emit if it
-      * is sampled. Sampling defaults to 1.0 for this reason.
-      *
-      * @param logLevel
-      *   Minimum level for log to emit
-      */
+    /** Minimum level used as the sampling/buffering boundary.
+     *
+     * Logs above this level are always emitted.
+     *
+     * Logs at this level are emitted only when the request is sampled.
+     *
+     * Logs below this level are emitted only when the request is sampled and
+     * sampleBelowMinLevel is enabled.
+     *
+     * When buffering is enabled, logs at or below this level are retained so
+     * they can be replayed when a log reaches replayAllLogLevel.
+     *
+     * @param logLevel
+     *   Minimum level boundary for sampling and buffering.
+     */
     def withMinLevel(logLevel: LogLevel): builder = {
       copy(minLevel = logLevel)
     }
 
-    /** Allows a sample of what otherwise may be successful calls to be emitted. Errors will always
-      * emit regardless of minimum level.
-      *
-      * @param sampleRate
-      *   percent of logs to emit at minLevel
-      * @return
-      */
+    /** Determines the percentage of requests that are sampled.
+     *
+     * Sampling is evaluated once per request and stored in the request context.
+     * When a request is sampled, logs at the minimum level may be emitted and,
+     * when enabled, logs below the minimum level may also be emitted.
+     *
+     * @param sampleRate
+     *   Fraction of requests to sample, from 0.0 to 1.0.
+     */
     def sampleRate(sampleRate: Float): builder = {
       copy(sampleRate = sampleRate)
     }
@@ -346,14 +354,21 @@ object BridgeLogger {
     }
 
     /** This determines if log levels below the minimum are buffered
-     */
+      */
     def bufferBelowMinLevel(bufferBelowMinLevel: Boolean): builder = {
       copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
+    }
+
+    /** This is a customizable level for what causes a buffer replay. If a log meets or exceeds this
+      * level all logs will be replayed.
+      */
+    def replayAllLogLevel(replayAllLogLevel: LogLevel): builder = {
+      copy(replayAllLogLevel = replayAllLogLevel)
     }
     private def toBridgeLoggerConfig: BridgeLoggerConfig = {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
-        replayAllLogLevel = this.replayAllLogsLevel,
+        replayAllLogLevel = this.replayAllLogLevel,
         sampleRate = this.sampleRate,
         sampleBelowMinLevel = this.sampleIncludesBelowMinLevel,
         bufferBelowMinLevel = this.bufferMessagesBelowMinLevel,
