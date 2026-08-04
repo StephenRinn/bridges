@@ -1,5 +1,4 @@
-ThisBuild / version := "0.1.2"
-ThisBuild / name := "bridges"
+ThisBuild / version := "0.1.3"
 ThisBuild / description :=
   "Context-aware logging for Cats Effect"
 ThisBuild / organization := "io.github.stephenrinn"
@@ -47,7 +46,7 @@ ThisBuild / developers := List(
   Developer(
     id = "StephenRinn",
     name = "Stephen Rinn",
-    email = "",
+    email = "rinnsteve@gmail.com",
     url = url("https://github.com/StephenRinn"),
   ),
 )
@@ -87,3 +86,6 @@ lazy val http4s = project
 lazy val root = project
   .in(file("."))
   .aggregate(core, http4s)
+  .settings(
+    publish / skip := true
+  )
