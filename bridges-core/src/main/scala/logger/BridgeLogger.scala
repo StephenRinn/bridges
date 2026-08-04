@@ -133,10 +133,10 @@ final class BridgeLoggerImpl(
       _ <- (bufferDump, emit, buffer) match {
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
         case (_, true, false) =>
-            for {
-              _ <- contextOps.updateRebuildLog(param, param.level)
-              _ <- fa(param)
-            } yield ()
+          for {
+            _ <- contextOps.updateRebuildLog(param, param.level)
+            _ <- fa(param)
+          } yield ()
         case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
         case _ => IO.unit
       }
@@ -318,7 +318,8 @@ object BridgeLogger {
     /** Custom minimum level which will cause log to emit. If a log does not emit the message will
       * be stored in a buffer to be replayed if a higher level log is later triggered.
       *
-      * This is also the level which sampleRate affects.
+      * This is also the level which sampleRate affects so a min level of Info will only emit if it
+      * is sampled. Sampling defaults to 1.0 for this reason.
       *
       * @param logLevel
       *   Minimum level for log to emit
@@ -339,12 +340,13 @@ object BridgeLogger {
     }
 
     /** Determines if a message with a lower level than the minimum should be buffered or ignored.
-      * @param sampleBelowMinLevel
-      * @return
       */
     def sampleBelowMinLevel(sampleBelowMinLevel: Boolean): builder = {
       copy(sampleIncludesBelowMinLevel = sampleBelowMinLevel)
     }
+
+    /** This determines if log levels below the minimum are buffered
+     */
     def bufferBelowMinLevel(bufferBelowMinLevel: Boolean): builder = {
       copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
     }
