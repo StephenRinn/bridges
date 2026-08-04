@@ -132,7 +132,7 @@ final class BridgeLoggerImpl(
       _ <- (bufferDump, emit, buffer) match {
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
         case (_, true, _) =>
-          if (sampled) {
+          if (sampled || param.level > bridgeLoggerConfig.minLevel) {
             for {
               _ <- contextOps.updateRebuildLog(param, param.level)
               _ <- fa(param)
