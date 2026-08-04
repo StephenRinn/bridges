@@ -18,11 +18,15 @@
 
 package logger
 
-import cats.effect.{Clock, IO, IOLocal, LiftIO}
+import cats.effect.Clock
+import cats.effect.IO
+import cats.effect.IOLocal
+import cats.effect.LiftIO
 import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
-import logEvent.{LogEvent, LogLevel}
+import logEvent.LogEvent
+import logEvent.LogLevel
 import logEvent.LogLevel._
 import logSink.LogSink
 import scala.math.Ordered.orderingToOrdered
@@ -106,12 +110,16 @@ final class BridgeLoggerImpl(
 
   }
 
-  private def emitEligible(param: LogEvent): Boolean = {
-    param.level >= bridgeLoggerConfig.minLevel
+  private def emitEligible(param: LogEvent, sampled: Boolean): Boolean = {
+    param.level >= bridgeLoggerConfig.minLevel || (sampled && bridgeLoggerConfig.sampleBelowMinLevel)
   }
 
   private def bufferDumpEligible(param: LogEvent): Boolean = {
     param.level >= bridgeLoggerConfig.replayAllLogLevel
+  }
+
+  private def bufferEligible(param: LogEvent): Boolean = {
+    param.level < bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel
   }
 
   private def evaluateLog(param: LogEvent, fa: LogEvent => IO[Unit]): IO[Unit] = {
@@ -119,17 +127,19 @@ final class BridgeLoggerImpl(
       storage <- contextOps.get
       sampled <- sampleEligible
       bufferDump = bufferDumpEligible(param)
-      emit = emitEligible(param)
-      _ <- (sampled, bufferDump, emit) match {
-        case (true, true, _) => rebuildAndPrint(param, storage, fa)
-        case (true, _, true) =>
-          for {
-            _ <- contextOps.updateRebuildLog(param, param.level)
-            _ <- fa(param)
-          } yield ()
-        case (_, true, _) => rebuildAndPrint(param, storage, fa)
-        case (_, _, true) => fa(param)
-        case _ => contextOps.updateRebuildLog(param, param.level)
+      emit = emitEligible(param, sampled)
+      buffer = bufferEligible(param)
+      _ <- (bufferDump, emit, buffer) match {
+        case (true, _, _) => rebuildAndPrint(param, storage, fa)
+        case (_, true, _) =>
+          if (sampled) {
+            for {
+              _ <- contextOps.updateRebuildLog(param, param.level)
+              _ <- fa(param)
+            } yield ()
+          } else IO.unit
+        case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
+        case _ => IO.unit
       }
     } yield ()
   }
@@ -305,12 +315,34 @@ object BridgeLogger {
       bufferMessagesBelowMinLevel: Boolean = false,
       logBufferSize: Int = 200,
   ) {
-    def minLevel(logLevel: LogLevel): builder = {
+
+    /** Custom minimum level which will cause log to emit. If a log does not emit the message will
+      * be stored in a buffer to be replayed if a higher level log is later triggered.
+      *
+      * This is also the level which sampleRate affects.
+      *
+      * @param logLevel
+      *   Minimum level for log to emit
+      */
+    def withMinLevel(logLevel: LogLevel): builder = {
       copy(minLevel = logLevel)
     }
+
+    /** Allows a sample of what otherwise may be successful calls to be emitted. Errors will always
+      * emit regardless of minimum level.
+      *
+      * @param sampleRate
+      *   percent of logs to emit at minLevel
+      * @return
+      */
     def sampleRate(sampleRate: Float): builder = {
       copy(sampleRate = sampleRate)
     }
+
+    /** Determines if a message with a lower level than the minimum should be buffered or ignored.
+      * @param sampleBelowMinLevel
+      * @return
+      */
     def sampleBelowMinLevel(sampleBelowMinLevel: Boolean): builder = {
       copy(sampleIncludesBelowMinLevel = sampleBelowMinLevel)
     }
