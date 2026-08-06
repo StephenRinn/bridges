@@ -43,8 +43,7 @@ class SLF4JSink extends LogSink with LazyLogging {
       case (Some(end), Some(start)) => Some(end - start)
       case _ => None
     }
-    s"""[timestamp=${System
-        .currentTimeMillis()}] [level=${logEvent.level}] [cid=${ctx.correlationId}]
+    s"""[timestamp=${logEvent.timestamp}] [level=${logEvent.level}] [cid=${ctx.correlationId}]
        | [rid=${ctx.requestId}] [duration=$duration] $values[message=${logEvent.message}] $throwO""".stripMargin
   }
 
