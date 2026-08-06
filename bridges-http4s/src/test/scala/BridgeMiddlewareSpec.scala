@@ -14,7 +14,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite {
     for {
       storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
     } yield (storage, sink, logger)
   }
 

@@ -18,7 +18,7 @@ class BridgeLoggerSpec extends CatsEffectSuite {
     for {
       storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create
-      logger = new BridgeLoggerImpl(storage, sink, bridgeLoggerConfig = updatedBridgeConfig)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink, bridgeLoggerConfig = updatedBridgeConfig)
     } yield (storage, sink, logger)
   }
 

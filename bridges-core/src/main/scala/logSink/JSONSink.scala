@@ -23,6 +23,7 @@ import io.circe.{Encoder, Json}
 import io.circe.syntax.EncoderOps
 import logEvent.LogEvent
 import logSink.JsonHelpers._
+import logger.traceContext.TraceContext
 
 class JSONSink extends LogSink {
   private def toLoggingJson(logEvent: LogEvent): String = {
@@ -39,6 +40,7 @@ class JSONSink extends LogSink {
         "rid" -> ctx.requestId.asJson,
         "duration" -> duration.asJson,
         "values" -> ctx.values.asJson,
+        "tracecontext" -> logEvent.traceContext.asJson,
         "level" -> logEvent.level.toString.asJson,
         "message" -> logEvent.message.asJson,
         "error" -> logEvent.throwable.orNull.asJson,
@@ -58,6 +60,15 @@ object JsonHelpers {
         "message" -> t.getMessage.asJson,
         "type" -> t.getClass.getName.asJson,
         "stacktrace" -> t.getStackTrace.map(s => s.toString.asJson).asJson,
+      )
+    }
+  }
+
+  implicit val traceContextEncoder: Encoder[TraceContext] = {
+    Encoder.instance { t =>
+      Json.obj(
+        "traceid" -> t.traceId.asJson,
+        "spanid" -> t.spanId.asJson,
       )
     }
   }

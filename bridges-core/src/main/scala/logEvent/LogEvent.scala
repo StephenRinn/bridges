@@ -19,12 +19,14 @@
 package logEvent
 
 import contextStorage.{IOStorage, RebuildLog}
+import logger.traceContext.TraceContext
 
 case class LogEvent(
     level: LogLevel,
     message: String,
     timestamp: Long,
     context: IOStorage,
+    traceContext: Option[TraceContext],
     throwable: Option[Throwable] = None,
 ) {
     def toStoredLog: LogEvent = {

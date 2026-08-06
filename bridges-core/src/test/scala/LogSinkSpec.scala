@@ -13,7 +13,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
 
       _ <- storage.update(_.copy(correlationId = "abc"))
 
@@ -33,7 +33,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
 
       _ <- storage.update(_.copy(correlationId = "PreUpdateTest"))
       _ <- logger.info("first")
@@ -52,7 +52,7 @@ class LogSinkSpec extends CatsEffectSuite {
     for {
       storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
 
       _ <- storage.update(_.copy(correlationId = "abc"))
 
@@ -76,7 +76,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
         sink <- TestLogSink.create
 
-        logger = new BridgeLoggerImpl(storage, sink)
+        logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
 
         _ <- storage.update(
           _.copy(
@@ -152,7 +152,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
 
       _ <- List(
         request(1, storage, logger),
@@ -219,7 +219,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger = new BridgeLoggerImpl(ioStorage = storage, sink = sink)
 
       _ <- (1 to RequestCount).toList
         .parTraverse_(request(_, storage, logger))

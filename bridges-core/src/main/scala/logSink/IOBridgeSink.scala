@@ -39,11 +39,14 @@ class IOBridgeSink extends LogSink {
         s"[Error: Message:${error.getMessage} Trace:${error.getStackTrace.mkString("\n at ")} Cause:${Option(error.getCause)}]"
       }
 
+    val traceContext =
+      logEvent.traceContext.map(_.formatTraceString).getOrElse("")
+
     val duration = (ctx.endTime, ctx.startTime) match {
       case (Some(end), Some(start)) => Some(end - start)
       case _ => None
     }
-    s"""[timestamp=${logEvent.timestamp}] [level=${logEvent.level}] [cid=${ctx.correlationId}]
+    s"""[timestamp=${logEvent.timestamp}] [level=${logEvent.level}] $traceContext[cid=${ctx.correlationId}]
        | [rid=${ctx.requestId}] [duration=$duration] $values[message=${logEvent.message}] $throwO""".stripMargin
   }
 

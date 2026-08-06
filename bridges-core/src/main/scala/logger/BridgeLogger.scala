@@ -29,6 +29,7 @@ import logEvent.LogEvent
 import logEvent.LogLevel
 import logEvent.LogLevel._
 import logSink.LogSink
+import logger.traceContext.{TraceContext, TraceContextProvider}
 import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
 
@@ -58,6 +59,7 @@ trait BridgeLogger {
 
 final class BridgeLoggerImpl(
     ioStorage: IOLocal[IOStorage],
+    traceContextProvider: Option[TraceContextProvider] = None,
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
@@ -72,11 +74,13 @@ final class BridgeLoggerImpl(
     for {
       now <- Clock[IO].realTime
       storage <- contextOps.get
+      traceContext <- traceContextProvider.fold(IO.pure(Option.empty[TraceContext]))(_.current)
       event = LogEvent(
         level = level,
         message = message,
         timestamp = now.toMillis,
         context = storage,
+        traceContext = traceContext,
         throwable = e,
       )
     } yield event
