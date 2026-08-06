@@ -27,7 +27,7 @@ case class LogEvent(
     context: IOStorage,
     throwable: Option[Throwable] = None,
 ) {
-    implicit def toStoredLog: LogEvent = {
+    def toStoredLog: LogEvent = {
       this.copy(context = context.copy(rebuildLog = List[RebuildLog]().empty))
     }
 }
