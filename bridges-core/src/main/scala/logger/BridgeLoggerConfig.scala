@@ -24,6 +24,8 @@ import logEvent.LogLevel._
 case class BridgeLoggerConfig(
     minLevel: LogLevel = Info,
     replayAllLogLevel: LogLevel = Warn,
+    // Can simplify replay if all logs are grouped
+    duplicateEntriesOnBufferDump: Boolean = false,
     sampleRate: Float = 1.0f,
     sampleBelowMinLevel: Boolean = false,
     bufferBelowMinLevel: Boolean = false,

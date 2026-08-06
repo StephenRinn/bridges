@@ -134,7 +134,9 @@ final class BridgeLoggerImpl(
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
         case (_, true, false) =>
           for {
-            _ <- contextOps.updateRebuildLog(param, param.level)
+            _ <- if(bridgeLoggerConfig.duplicateEntriesOnBufferDump) {
+              contextOps.updateRebuildLog(param, param.level)
+            } else IO.unit
             _ <- fa(param)
           } yield ()
         case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
@@ -321,6 +323,7 @@ object BridgeLogger {
   case class builder(
       minLevel: LogLevel = Info,
       replayAllLogLevel: LogLevel = Warn,
+      duplicateEntriesOnBufferDump: Boolean = false,
       sampleRate: Float = 1.0f,
       sampleIncludesBelowMinLevel: Boolean = false,
       bufferMessagesBelowMinLevel: Boolean = false,
@@ -371,6 +374,13 @@ object BridgeLogger {
       copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
     }
 
+    /** Set whether an emitted log is also stored in the buffer to condense
+     * all logs and more easily see order etc. Defaults to false
+     */
+    def duplicateEntriesOnBufferDump(duplicate: Boolean): builder = {
+      copy(duplicateEntriesOnBufferDump = duplicate)
+    }
+
     /** This is a customizable level for what causes a buffer replay. If a log meets or exceeds this
       * level all logs will be replayed.
       */
@@ -381,6 +391,7 @@ object BridgeLogger {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
         replayAllLogLevel = this.replayAllLogLevel,
+        duplicateEntriesOnBufferDump = this.,
         sampleRate = this.sampleRate,
         sampleBelowMinLevel = this.sampleIncludesBelowMinLevel,
         bufferBelowMinLevel = this.bufferMessagesBelowMinLevel,
