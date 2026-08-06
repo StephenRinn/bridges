@@ -162,6 +162,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
+  /** Values are added to the context, not based on this log event only
+    */
   override def trace(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -176,6 +178,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
+  /** Values are added to the context, not based on this log event only
+   */
   override def debug(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -190,6 +194,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
+  /** Values are added to the context, not based on this log event only
+   */
   override def info(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -204,6 +210,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
+  /** Values are added to the context, not based on this log event only
+   */
   override def warn(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -218,6 +226,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
+  /** Values are added to the context, not based on this log event only
+   */
   override def error(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -232,6 +242,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
+  /** Values are added to the context, not based on this log event only
+   */
   override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -316,33 +328,33 @@ object BridgeLogger {
   ) {
 
     /** Minimum level used as the sampling/buffering boundary.
-     *
-     * Logs above this level are always emitted.
-     *
-     * Logs at this level are emitted only when the request is sampled.
-     *
-     * Logs below this level are emitted only when the request is sampled and
-     * sampleBelowMinLevel is enabled.
-     *
-     * When buffering is enabled, logs at or below this level are retained so
-     * they can be replayed when a log reaches replayAllLogLevel.
-     *
-     * @param logLevel
-     *   Minimum level boundary for sampling and buffering.
-     */
+      *
+      * Logs above this level are always emitted.
+      *
+      * Logs at this level are emitted only when the request is sampled.
+      *
+      * Logs below this level are emitted only when the request is sampled and sampleBelowMinLevel
+      * is enabled.
+      *
+      * When buffering is enabled, logs at or below this level are retained so they can be replayed
+      * when a log reaches replayAllLogLevel.
+      *
+      * @param logLevel
+      *   Minimum level boundary for sampling and buffering.
+      */
     def withMinLevel(logLevel: LogLevel): builder = {
       copy(minLevel = logLevel)
     }
 
     /** Determines the percentage of requests that are sampled.
-     *
-     * Sampling is evaluated once per request and stored in the request context.
-     * When a request is sampled, logs at the minimum level may be emitted and,
-     * when enabled, logs below the minimum level may also be emitted.
-     *
-     * @param sampleRate
-     *   Fraction of requests to sample, from 0.0 to 1.0.
-     */
+      *
+      * Sampling is evaluated once per request and stored in the request context. When a request is
+      * sampled, logs at the minimum level may be emitted and, when enabled, logs below the minimum
+      * level may also be emitted.
+      *
+      * @param sampleRate
+      *   Fraction of requests to sample, from 0.0 to 1.0.
+      */
     def sampleRate(sampleRate: Float): builder = {
       copy(sampleRate = sampleRate)
     }
