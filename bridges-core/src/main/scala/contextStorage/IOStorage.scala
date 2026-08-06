@@ -20,6 +20,16 @@ package contextStorage
 
 import logEvent._
 
+trait BridgeStorage {
+  val requestId: String
+  val correlationId: String
+  val values: Map[String, String]
+  val startTime: Option[Long]
+  val endTime: Option[Long]
+  val sampled: Option[Boolean]
+  val rebuildLog: List[RebuildLog]
+}
+
 final case class IOStorage(
     requestId: String,
     correlationId: String,
@@ -28,7 +38,7 @@ final case class IOStorage(
     endTime: Option[Long],
     sampled: Option[Boolean],
     rebuildLog: List[RebuildLog],
-)
+) extends BridgeStorage
 
 final case class RebuildLog(
     log: LogEvent,

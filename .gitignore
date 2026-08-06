@@ -46,3 +46,4 @@ build/
 
 ### Scala ###
 .bsp/
+/bridges-http4s/.idea/

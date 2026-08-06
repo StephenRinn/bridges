@@ -391,7 +391,7 @@ object BridgeLogger {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
         replayAllLogLevel = this.replayAllLogLevel,
-        duplicateEntriesOnBufferDump = this.,
+        duplicateEntriesOnBufferDump = this.duplicateEntriesOnBufferDump,
         sampleRate = this.sampleRate,
         sampleBelowMinLevel = this.sampleIncludesBelowMinLevel,
         bufferBelowMinLevel = this.bufferMessagesBelowMinLevel,
