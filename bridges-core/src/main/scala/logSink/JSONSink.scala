@@ -28,8 +28,8 @@ class JSONSink extends LogSink {
   private def toLoggingJson(logEvent: LogEvent): String = {
     val ctx = logEvent.context
     val duration = (ctx.endTime, ctx.startTime) match {
-      case (Some(end), Some(start)) => end - start
-      case _ => -1
+      case (Some(end), Some(start)) => Some(end - start)
+      case _ => None
     }
 
     Json
