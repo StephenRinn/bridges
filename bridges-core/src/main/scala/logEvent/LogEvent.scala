@@ -18,7 +18,7 @@
 
 package logEvent
 
-import contextStorage.IOStorage
+import contextStorage.{IOStorage, RebuildLog}
 
 case class LogEvent(
     level: LogLevel,
@@ -26,4 +26,8 @@ case class LogEvent(
     timestamp: Long,
     context: IOStorage,
     throwable: Option[Throwable] = None,
-)
+) {
+    implicit def toStoredLog: LogEvent = {
+      this.copy(context = context.copy(rebuildLog = List[RebuildLog]().empty))
+    }
+}
