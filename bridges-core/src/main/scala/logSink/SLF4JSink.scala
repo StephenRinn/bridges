@@ -36,7 +36,8 @@ class SLF4JSink extends LogSink with LazyLogging {
     val throwO =
       if (logEvent.throwable.isEmpty) ""
       else {
-        s"[Error=${logEvent.throwable.get}]"
+        val error = logEvent.throwable.get
+        s"[Error: Message:${error.getMessage} Trace:${error.getStackTrace.mkString("\n at ")} Cause:${Option(error.getCause)}]"
       }
 
     val duration = (ctx.endTime, ctx.startTime) match {
