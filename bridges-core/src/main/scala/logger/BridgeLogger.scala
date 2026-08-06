@@ -145,7 +145,7 @@ final class BridgeLoggerImpl(
 
   private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
     rebuildLogs.map { rebuildLog =>
-      rebuildLog.level match {
+      rebuildLog.log.level match {
         case LogLevel.Trace => sink.trace(rebuildLog.log)
         case LogLevel.Debug => sink.debug(rebuildLog.log)
         case LogLevel.Info => sink.info(rebuildLog.log)

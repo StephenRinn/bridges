@@ -32,7 +32,6 @@ final case class IOStorage(
 
 final case class RebuildLog(
     log: LogEvent,
-    level: LogLevel,
 )
 
 object IOStorage {
