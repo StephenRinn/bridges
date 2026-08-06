@@ -59,7 +59,7 @@ trait BridgeLogger {
 
 final class BridgeLoggerImpl(
     ioStorage: IOLocal[IOStorage],
-    traceContextProvider: Option[TraceContextProvider] = None,
+    traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
@@ -74,7 +74,7 @@ final class BridgeLoggerImpl(
     for {
       now <- Clock[IO].realTime
       storage <- contextOps.get
-      traceContext <- traceContextProvider.fold(IO.pure(Option.empty[TraceContext]))(_.current)
+      traceContext <- traceContextProvider.current
       event = LogEvent(
         level = level,
         message = message,
