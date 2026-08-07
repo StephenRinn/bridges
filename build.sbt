@@ -79,7 +79,7 @@ lazy val otel4s = project
     name := "bridges-otel4s",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "otel4s-sdk" % otel4sVersion,
-      "org.typelevel" %% "otel4s-sdk-exporter" % otel4sVersion
+      "org.typelevel" %% "otel4s-sdk-exporter" % otel4sVersion,
     ),
   )
 
