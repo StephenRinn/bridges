@@ -1,40 +1,30 @@
 import cats.effect.{IO, IOLocal}
 import contextStorage.IOStorage
 import logEvent.LogLevel._
-import logger.{BridgeLoggerConfig, BridgeLoggerImpl}
+import logger.{BridgeLogger, BridgeLoggerConfig}
 import munit.CatsEffectSuite
+import org.scalatest.PrivateMethodTester
 import util.TestLogSink
 
-class BridgeLoggerSpec extends CatsEffectSuite {
+class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester{
 
-  private def setup: IO[(IOLocal[IOStorage], TestLogSink, BridgeLoggerImpl)] = {
-    val bridgeConfig = BridgeLoggerConfig.default
-    val updatedBridgeConfig =
-      bridgeConfig.copy(
-        sampleBelowMinLevel = true,
-        bufferBelowMinLevel = true,
-        replayAllLogLevel = Info,
-      )
+  private def setup: IO[(TestLogSink, BridgeLogger)] = {
     for {
-      storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create
-      logger = new BridgeLoggerImpl(
-        ioStorage = storage,
-        sink = sink,
-        bridgeLoggerConfig = updatedBridgeConfig,
-      )
-    } yield (storage, sink, logger)
+      logger <- BridgeLogger.builder().sampleBelowMinLevel(true).bufferBelowMinLevel(true).replayAllLogLevel(Info).build(sink)
+    } yield (sink, logger)
   }
 
   test("correctly stores log history for below level logs") {
-    setup.flatMap { case (_, sink, logger) =>
+    val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
+    setup.flatMap { case (sink, logger) =>
       for {
-        beforeStorage <- logger.getStorage
+        beforeStorage <- logger invokePrivate getStorage()
         _ <- logger.debug("This is a debug test")
         _ <- logger.trace("This is a trace test")
-        afterStorage <- logger.getStorage
+        afterStorage <- logger invokePrivate getStorage()
         _ <- logger.info("This is the trigger")
-        finalStorage <- logger.getStorage
+        finalStorage <- logger invokePrivate getStorage()
         messages <- sink.messages
       } yield {
         assertEquals(beforeStorage.rebuildLog.size, 0)

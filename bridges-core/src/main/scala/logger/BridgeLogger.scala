@@ -63,7 +63,7 @@ trait BridgeLogger {
   def setRequestId(id: String): IO[Unit]
 }
 
-final class BridgeLoggerImpl(
+final class BridgeLoggerImpl private[logger] (
     ioStorage: IOLocal[IOStorage],
     traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
     sink: LogSink,
@@ -374,7 +374,7 @@ final class BridgeLoggerImpl(
 
   override def setRequestId(id: String): IO[Unit] = contextOps.setRequest(id)
 
-  def getStorage: IO[IOStorage] = ioStorage.get
+  private def getStorage: IO[IOStorage] = ioStorage.get
 }
 
 object BridgeLogger {
@@ -394,59 +394,59 @@ object BridgeLogger {
   ) {
 
     /** Minimum level used as the sampling/buffering boundary.
-      *
-      * Logs above this level are always emitted.
-      *
-      * Logs at this level are emitted only when the request is sampled.
-      *
-      * Logs below this level are emitted only when the request is sampled and sampleBelowMinLevel
-      * is enabled.
-      *
-      * When buffering is enabled, logs at or below this level are retained so they can be replayed
-      * when a log reaches replayAllLogLevel.
-      *
-      * @param logLevel
-      *   Minimum level boundary for sampling and buffering.
-      */
+     *
+     * Logs above this level are always emitted.
+     *
+     * Logs at this level are emitted only when the request is sampled.
+     *
+     * Logs below this level are emitted only when the request is sampled and sampleBelowMinLevel
+     * is enabled.
+     *
+     * When buffering is enabled, logs at or below this level are retained so they can be replayed
+     * when a log reaches replayAllLogLevel.
+     *
+     * @param logLevel
+     * Minimum level boundary for sampling and buffering.
+     */
     def withMinLevel(logLevel: LogLevel): builder = {
       copy(minLevel = logLevel)
     }
 
     /** Determines the percentage of requests that are sampled.
-      *
-      * Sampling is evaluated once per request and stored in the request context. When a request is
-      * sampled, logs at the minimum level may be emitted and, when enabled, logs below the minimum
-      * level may also be emitted.
-      *
-      * @param sampleRate
-      *   Fraction of requests to sample, from 0.0 to 1.0.
-      */
+     *
+     * Sampling is evaluated once per request and stored in the request context. When a request is
+     * sampled, logs at the minimum level may be emitted and, when enabled, logs below the minimum
+     * level may also be emitted.
+     *
+     * @param sampleRate
+     * Fraction of requests to sample, from 0.0 to 1.0.
+     */
     def sampleRate(sampleRate: Float): builder = {
       copy(sampleRate = sampleRate)
     }
 
     /** Determines if a message with a lower level than the minimum should be buffered or ignored.
-      */
+     */
     def sampleBelowMinLevel(sampleBelowMinLevel: Boolean): builder = {
       copy(sampleIncludesBelowMinLevel = sampleBelowMinLevel)
     }
 
     /** This determines if log levels below the minimum are buffered
-      */
+     */
     def bufferBelowMinLevel(bufferBelowMinLevel: Boolean): builder = {
       copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
     }
 
     /** Set whether an emitted log is also stored in the buffer to condense all logs and more easily
-      * see order etc. Defaults to false
-      */
+     * see order etc. Defaults to false
+     */
     def duplicateEntriesOnBufferDump(duplicate: Boolean): builder = {
       copy(duplicateEntriesOnBufferDump = duplicate)
     }
 
     /** This is a customizable level for what causes a buffer replay. If a log meets or exceeds this
-      * level all logs will be replayed.
-      */
+     * level all logs will be replayed.
+     */
     def replayAllLogLevel(replayAllLogLevel: LogLevel): builder = {
       copy(replayAllLogLevel = replayAllLogLevel)
     }
@@ -454,6 +454,7 @@ object BridgeLogger {
     def traceContextProvider(traceContextProvider: TraceContextProvider): builder = {
       copy(traceContextProvider = traceContextProvider)
     }
+
     private def toBridgeLoggerConfig: BridgeLoggerConfig = {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
@@ -465,12 +466,16 @@ object BridgeLogger {
         bufferSize = this.logBufferSize,
       )
     }
-    def build(ioStorage: IOLocal[IOStorage], sink: LogSink): BridgeLogger =
-      new BridgeLoggerImpl(
-        traceContextProvider = this.traceContextProvider,
-        ioStorage = ioStorage,
-        sink = sink,
-        bridgeLoggerConfig = toBridgeLoggerConfig,
-      )
+
+    def build(sink: LogSink): IO[BridgeLogger] = {
+      IOLocal(IOStorage.empty).map { ioStorage =>
+        new BridgeLoggerImpl(
+          traceContextProvider = this.traceContextProvider,
+          ioStorage = ioStorage,
+          sink = sink,
+          bridgeLoggerConfig = toBridgeLoggerConfig,
+        )
+      }
+    }
   }
 }

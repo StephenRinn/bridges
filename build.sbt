@@ -56,6 +56,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.typelevel" %% "cats-effect" % catsVersion,
     "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
+    "org.scalatest" %% "scalatest" % "3.2.20" % Test,
   ),
 )
 
