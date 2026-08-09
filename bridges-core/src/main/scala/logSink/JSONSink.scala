@@ -60,6 +60,8 @@ object JsonHelpers {
         "message" -> t.getMessage.asJson,
         "type" -> t.getClass.getName.asJson,
         "stacktrace" -> t.getStackTrace.map(s => s.toString.asJson).asJson,
+        "cause" -> t.getCause.toString.asJson,
+        "suppressedexceptions" -> t.getSuppressed.map(s => s.toString.asJson).asJson
       )
     }
   }
