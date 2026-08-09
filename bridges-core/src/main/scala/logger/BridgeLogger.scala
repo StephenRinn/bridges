@@ -325,6 +325,7 @@ object BridgeLogger {
   }
 
   case class builder(
+      traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
       minLevel: LogLevel = Info,
       replayAllLogLevel: LogLevel = Warn,
       duplicateEntriesOnBufferDump: Boolean = false,
@@ -391,6 +392,10 @@ object BridgeLogger {
     def replayAllLogLevel(replayAllLogLevel: LogLevel): builder = {
       copy(replayAllLogLevel = replayAllLogLevel)
     }
+
+    def traceContextProvider(traceContextProvider: TraceContextProvider): builder = {
+      copy(traceContextProvider = traceContextProvider)
+    }
     private def toBridgeLoggerConfig: BridgeLoggerConfig = {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
@@ -404,6 +409,7 @@ object BridgeLogger {
     }
     def build(ioStorage: IOLocal[IOStorage], sink: LogSink): BridgeLogger =
       new BridgeLoggerImpl(
+        traceContextProvider = this.traceContextProvider,
         ioStorage = ioStorage,
         sink = sink,
         bridgeLoggerConfig = toBridgeLoggerConfig,
