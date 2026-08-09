@@ -82,9 +82,8 @@ object Main extends IOApp.Simple
 
 def run = {
   for {
-    storage <- IOLocal(IOStorage.empty)
     // Create sink implementation here
-    logger = BridgeLogger.builder().withMinLevel(Info).build(storage, sink)
+    logger = BridgeLogger.builder().withMinLevel(Info).build(sink)
     _ <- Bridge.initialize(logger)
     _ <- Server.run()
   } yield ()
