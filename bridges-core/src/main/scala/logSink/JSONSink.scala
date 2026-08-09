@@ -48,7 +48,7 @@ class JSONSink extends LogSink {
       .noSpaces
   }
 
-  override protected def log(event: LogEvent): IO[Unit] = {
+  override def log(event: LogEvent): IO[Unit] = {
     IO.blocking(println(toLoggingJson(event)))
   }
 }

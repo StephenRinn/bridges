@@ -52,7 +52,7 @@ class SLF4JSink extends LogSink with LazyLogging {
        | [rid=${ctx.requestId}] [duration=$duration] $values[message=${logEvent.message}] $throwO""".stripMargin
   }
 
-  override protected def log(event: LogEvent): IO[Unit] = {
+  override def log(event: LogEvent): IO[Unit] = {
     val formattedLog = format(event)
     event.level match {
       case LogLevel.Trace => IO.blocking(logger.trace(formattedLog))

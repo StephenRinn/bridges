@@ -50,7 +50,7 @@ class IOBridgeSink extends LogSink {
        | [rid=${ctx.requestId}] [duration=$duration] $values[message=${logEvent.message}] $throwO""".stripMargin
   }
 
-  override protected def log(event: LogEvent): IO[Unit] = {
+  override def log(event: LogEvent): IO[Unit] = {
     val formattedLog = format(event)
     IO.blocking {
       println(formattedLog)

@@ -151,20 +151,14 @@ final class BridgeLoggerImpl(
 
   private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
     rebuildLogs.map { rebuildLog =>
-      rebuildLog.log.level match {
-        case LogLevel.Trace => sink.trace(rebuildLog.log)
-        case LogLevel.Debug => sink.debug(rebuildLog.log)
-        case LogLevel.Info => sink.info(rebuildLog.log)
-        case LogLevel.Warn => sink.warn(rebuildLog.log)
-        case LogLevel.Error => sink.error(rebuildLog.log)
+        sink.log(rebuildLog.log)
       }
-    }
   }
 
   override def trace(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Trace)
-      _ <- evaluateLog(event, sink.trace)
+      _ <- evaluateLog(event, sink.log)
     } yield ()
   }
 
@@ -180,7 +174,7 @@ final class BridgeLoggerImpl(
   override def debug(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Debug)
-      _ <- evaluateLog(event, sink.debug)
+      _ <- evaluateLog(event, sink.log)
     } yield ()
   }
 
@@ -196,7 +190,7 @@ final class BridgeLoggerImpl(
   override def info(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Info)
-      _ <- evaluateLog(event, sink.info)
+      _ <- evaluateLog(event, sink.log)
     } yield ()
   }
 
@@ -212,7 +206,7 @@ final class BridgeLoggerImpl(
   override def warn(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Warn)
-      _ <- evaluateLog(event, sink.warn)
+      _ <- evaluateLog(event, sink.log)
     } yield ()
   }
 
@@ -228,7 +222,7 @@ final class BridgeLoggerImpl(
   override def error(msg: String): IO[Unit] = {
     for {
       event <- toEvent(msg, Error)
-      _ <- evaluateLog(event, sink.error)
+      _ <- evaluateLog(event, sink.log)
     } yield ()
   }
 
@@ -244,7 +238,7 @@ final class BridgeLoggerImpl(
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
       event <- toEvent(msg, Error, Some(e))
-      _ <- evaluateLog(event, sink.error)
+      _ <- evaluateLog(event, sink.log)
     } yield ()
   }
 
