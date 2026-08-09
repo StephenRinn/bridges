@@ -18,18 +18,14 @@
 
 package logger
 
-import cats.effect.Clock
-import cats.effect.IO
-import cats.effect.IOLocal
-import cats.effect.LiftIO
+import cats.effect.{Clock, IO, IOLocal, LiftIO}
 import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
-import logEvent.LogEvent
-import logEvent.LogLevel
+import logEvent.{LogEvent, LogLevel}
 import logEvent.LogLevel._
 import logSink.LogSink
-import logger.traceContext.{TraceContext, TraceContextProvider}
+import logger.traceContext.TraceContextProvider
 import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
 
@@ -138,9 +134,10 @@ final class BridgeLoggerImpl(
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
         case (_, true, false) =>
           for {
-            _ <- if(bridgeLoggerConfig.duplicateEntriesOnBufferDump) {
-              contextOps.updateRebuildLog(param, param.level)
-            } else IO.unit
+            _ <-
+              if (bridgeLoggerConfig.duplicateEntriesOnBufferDump) {
+                contextOps.updateRebuildLog(param, param.level)
+              } else IO.unit
             _ <- fa(param)
           } yield ()
         case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
@@ -151,8 +148,8 @@ final class BridgeLoggerImpl(
 
   private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
     rebuildLogs.map { rebuildLog =>
-        sink.log(rebuildLog.log)
-      }
+      sink.log(rebuildLog.log)
+    }
   }
 
   override def trace(msg: String): IO[Unit] = {
@@ -179,7 +176,7 @@ final class BridgeLoggerImpl(
   }
 
   /** Values are added to the context, not based on this log event only
-   */
+    */
   override def debug(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -195,7 +192,7 @@ final class BridgeLoggerImpl(
   }
 
   /** Values are added to the context, not based on this log event only
-   */
+    */
   override def info(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -211,7 +208,7 @@ final class BridgeLoggerImpl(
   }
 
   /** Values are added to the context, not based on this log event only
-   */
+    */
   override def warn(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -227,7 +224,7 @@ final class BridgeLoggerImpl(
   }
 
   /** Values are added to the context, not based on this log event only
-   */
+    */
   override def error(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -243,7 +240,7 @@ final class BridgeLoggerImpl(
   }
 
   /** Values are added to the context, not based on this log event only
-   */
+    */
   override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
@@ -373,9 +370,9 @@ object BridgeLogger {
       copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
     }
 
-    /** Set whether an emitted log is also stored in the buffer to condense
-     * all logs and more easily see order etc. Defaults to false
-     */
+    /** Set whether an emitted log is also stored in the buffer to condense all logs and more easily
+      * see order etc. Defaults to false
+      */
     def duplicateEntriesOnBufferDump(duplicate: Boolean): builder = {
       copy(duplicateEntriesOnBufferDump = duplicate)
     }

@@ -101,5 +101,5 @@ lazy val root = project
   .in(file("."))
   .aggregate(core, http4s, otel4s)
   .settings(
-    publish / skip := true
+    publish / skip := true,
   )

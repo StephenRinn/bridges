@@ -29,7 +29,7 @@ case class LogEvent(
     traceContext: Option[TraceContext],
     throwable: Option[Throwable] = None,
 ) {
-    def toStoredLog: LogEvent = {
-      this.copy(context = context.copy(rebuildLog = List[RebuildLog]().empty))
-    }
+  def toStoredLog: LogEvent = {
+    this.copy(context = context.copy(rebuildLog = List[RebuildLog]().empty))
+  }
 }

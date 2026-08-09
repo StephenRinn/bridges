@@ -1,6 +1,5 @@
 import cats.effect.IO
 import munit.CatsEffectSuite
-import org.typelevel.otel4s.sdk.context
 import org.typelevel.otel4s.sdk.testkit.OpenTelemetrySdkTestkit
 
 class Otel4sBridgeSuite extends CatsEffectSuite {
@@ -129,20 +128,26 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
         result <- {
           val bridge = new Otel4sBridge(tracer)
           for {
-            fiberA <- tracer.span("span-a").use{ spanA =>
-              bridge.current.map(ctx => (ctx, spanA.context))
-            }.start
+            fiberA <- tracer
+              .span("span-a")
+              .use { spanA =>
+                bridge.current.map(ctx => (ctx, spanA.context))
+              }
+              .start
 
-            fiberB <- tracer.span("span-b").use { spanB =>
-              bridge.current.map(ctx => (ctx, spanB.context))
-            }.start
+            fiberB <- tracer
+              .span("span-b")
+              .use { spanB =>
+                bridge.current.map(ctx => (ctx, spanB.context))
+              }
+              .start
 
             resultA <- fiberA.joinWithNever
             resultB <- fiberB.joinWithNever
           } yield (resultA, resultB)
         }
       } yield {
-        val ((contextA,spanA),(contextB,spanB)) = result
+        val ((contextA, spanA), (contextB, spanB)) = result
         assertEquals(contextA.get.spanId, Some(spanA.spanId.toString))
         assertEquals(contextB.get.spanId, Some(spanB.spanId.toString))
         assertNotEquals(contextA.get.spanId, contextB.get.spanId)

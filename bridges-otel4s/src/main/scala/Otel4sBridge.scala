@@ -1,6 +1,5 @@
 import cats.effect.IO
-import logger.traceContext.TraceContext
-import logger.traceContext.TraceContextProvider
+import logger.traceContext.{TraceContext, TraceContextProvider}
 import org.typelevel.otel4s.trace.Tracer
 
 final class Otel4sBridge(

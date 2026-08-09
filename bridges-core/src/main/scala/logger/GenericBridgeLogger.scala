@@ -18,15 +18,30 @@
 
 package logger
 
-import cats.effect.LiftIO
+import cats.effect.{IO, LiftIO}
+import cats.~>
+import java.util.UUID
 
 trait GenericBridgeLogger[F[_]] {
   def trace(msg: String): F[Unit]
+  def trace(msg: String, values: Map[String, String]): F[Unit]
   def debug(msg: String): F[Unit]
+  def debug(msg: String, values: Map[String, String]): F[Unit]
   def info(msg: String): F[Unit]
+  def info(msg: String, values: Map[String, String]): F[Unit]
   def warn(msg: String): F[Unit]
+  def warn(msg: String, values: Map[String, String]): F[Unit]
   def error(msg: String): F[Unit]
+  def error(msg: String, values: Map[String, String]): F[Unit]
   def error(msg: String, e: Throwable): F[Unit]
+  def error(msg: String, e: Throwable, values: Map[String, String]): F[Unit]
+  def withRequest[A](
+      values: Map[String, String] = Map[String, String](),
+      sampleRequest: Option[Boolean] = None,
+      correlationId: String = UUID.randomUUID().toString,
+      requestId: String = UUID.randomUUID().toString,
+      transform: F ~> IO,
+  )(fa: F[A]): F[A]
   def updateValues(key: String, value: String): F[Unit]
   def setCorrelationId(id: String): F[Unit]
   def setRequestId(id: String): F[Unit]
@@ -41,24 +56,66 @@ object GenericBridgeLogger {
         LiftIO[F].liftIO(bridge.trace(msg))
       }
 
+      override def trace(msg: String, values: Map[String, String]): F[Unit] = {
+        LiftIO[F].liftIO(bridge.trace(msg, values))
+      }
+
       override def debug(msg: String): F[Unit] = {
         LiftIO[F].liftIO(bridge.debug(msg))
+      }
+
+      override def debug(msg: String, values: Map[String, String]): F[Unit] = {
+        LiftIO[F].liftIO(bridge.debug(msg, values))
       }
 
       override def info(msg: String): F[Unit] = {
         LiftIO[F].liftIO(bridge.info(msg))
       }
 
+      override def info(msg: String, values: Map[String, String]): F[Unit] = {
+        LiftIO[F].liftIO(bridge.info(msg, values))
+      }
+
       override def warn(msg: String): F[Unit] = {
         LiftIO[F].liftIO(bridge.warn(msg))
+      }
+
+      override def warn(msg: String, values: Map[String, String]): F[Unit] = {
+        LiftIO[F].liftIO(bridge.warn(msg, values))
       }
 
       override def error(msg: String): F[Unit] = {
         LiftIO[F].liftIO(bridge.error(msg))
       }
 
+      override def error(msg: String, values: Map[String, String]): F[Unit] = {
+        LiftIO[F].liftIO(bridge.error(msg, values))
+      }
+
       override def error(msg: String, e: Throwable): F[Unit] = {
         LiftIO[F].liftIO(bridge.error(msg, e))
+      }
+
+      override def error(msg: String, e: Throwable, values: Map[String, String]): F[Unit] = {
+        LiftIO[F].liftIO(bridge.error(msg, e, values))
+      }
+
+      override def withRequest[A](
+          values: Map[String, String] = Map[String, String](),
+          sampleRequest: Option[Boolean] = None,
+          correlationId: String = UUID.randomUUID().toString,
+          requestId: String = UUID.randomUUID().toString,
+          transform: F ~> IO,
+      )(fa: F[A]): F[A] = {
+
+        LiftIO[F].liftIO(
+          bridge.withRequest[A](
+            values = values,
+            sampleRequest = sampleRequest,
+            correlationId = correlationId,
+            requestId = requestId,
+          )(transform(fa)),
+        )
       }
 
       override def updateValues(key: String, value: String): F[Unit] = {

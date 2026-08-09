@@ -22,13 +22,11 @@ import cats.effect.IO
 import java.util.UUID
 import logger.BridgeLogger
 
-/**
- * Bridge is loosely a singleton logging provider to allow
- * wiring logging into objects without explicitly injecting it.
- *
- * Those who wish for direct dependency injection can avoid this
- * break in functional paradigms.
- */
+/** Bridge is loosely a singleton logging provider to allow wiring logging into objects without
+  * explicitly injecting it.
+  *
+  * Those who wish for direct dependency injection can avoid this break in functional paradigms.
+  */
 object Bridge {
   @volatile
   private var logger: BridgeLogger = _
