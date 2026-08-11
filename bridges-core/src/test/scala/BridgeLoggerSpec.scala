@@ -1,17 +1,22 @@
-import cats.effect.{IO, IOLocal}
+import cats.effect.IO
 import contextStorage.IOStorage
 import logEvent.LogLevel._
-import logger.{BridgeLogger, BridgeLoggerConfig}
+import logger.BridgeLogger
 import munit.CatsEffectSuite
 import org.scalatest.PrivateMethodTester
 import util.TestLogSink
 
-class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester{
+class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
 
   private def setup: IO[(TestLogSink, BridgeLogger)] = {
     for {
       sink <- TestLogSink.create
-      logger <- BridgeLogger.builder().sampleBelowMinLevel(true).bufferBelowMinLevel(true).replayAllLogLevel(Info).build(sink)
+      logger <- BridgeLogger
+        .builder()
+        .sampleBelowMinLevel(true)
+        .bufferBelowMinLevel(true)
+        .replayAllLogLevel(Info)
+        .build(sink)
     } yield (sink, logger)
   }
 
@@ -19,12 +24,12 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester{
     val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
     setup.flatMap { case (sink, logger) =>
       for {
-        beforeStorage <- logger invokePrivate getStorage()
+        beforeStorage <- logger.invokePrivate(getStorage())
         _ <- logger.debug("This is a debug test")
         _ <- logger.trace("This is a trace test")
-        afterStorage <- logger invokePrivate getStorage()
+        afterStorage <- logger.invokePrivate(getStorage())
         _ <- logger.info("This is the trigger")
-        finalStorage <- logger invokePrivate getStorage()
+        finalStorage <- logger.invokePrivate(getStorage())
         messages <- sink.messages
       } yield {
         assertEquals(beforeStorage.rebuildLog.size, 0)

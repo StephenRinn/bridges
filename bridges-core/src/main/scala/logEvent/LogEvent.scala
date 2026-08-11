@@ -19,17 +19,35 @@
 package logEvent
 
 import contextStorage.{IOStorage, RebuildLog}
-import logger.traceContext.TraceContext
 
 case class LogEvent(
     level: LogLevel,
     message: String,
     timestamp: Long,
     context: IOStorage,
-    traceContext: Option[TraceContext],
+    attributes: Map[String, LogValue],
     throwable: Option[Throwable] = None,
 ) {
   def toStoredLog: LogEvent = {
     this.copy(context = context.copy(rebuildLog = List[RebuildLog]().empty))
   }
+
+  def formattedAttribute: String = {
+    this.attributes.foldLeft("") { case (acc, (name, value)) =>
+      acc ++ s"[$name:$value] "
+    }
+  }
+}
+
+object LogEvent {
+  def attributes(
+      values: (String, LogValue)*,
+  ): Map[String, LogValue] =
+    values.toMap
+
+  def attribute[A: ToLogValue](
+      key: String,
+      value: A,
+  ): (String, LogValue) =
+    key -> implicitly[ToLogValue[A]].toLogValue(value)
 }

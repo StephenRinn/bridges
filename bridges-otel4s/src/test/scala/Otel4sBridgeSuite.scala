@@ -9,7 +9,7 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
       for {
         tracer <- testkit.tracerProvider.get("bridges-test")
         bridge = new Otel4sBridge(tracer)
-        ctx <- bridge.current
+        ctx <- bridge.attributes
       } yield {
         assert(ctx.isEmpty)
       }
@@ -22,15 +22,15 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
         tracer <- testkit.tracerProvider.get("bridges-test")
         bridge = new Otel4sBridge(tracer)
         result <- tracer.span("test-span").use { span =>
-          bridge.current.map { context =>
+          bridge.attributes.map { context =>
             (context, span.context)
           }
         }
       } yield {
         val (context, spanContext) = result
-        assert(context.isDefined)
-        assertEquals(context.get.traceId.get, spanContext.traceId.toString())
-        assertEquals(context.get.spanId.get, spanContext.spanId.toString())
+        assert(context.nonEmpty)
+        assertEquals(context("traceid").toString, spanContext.traceId.toString())
+        assertEquals(context("spanid").toString, spanContext.spanId.toString())
       }
     }
   }
@@ -43,9 +43,9 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
           val bridge = new Otel4sBridge(tracer)
           tracer.span("parent-span").use { span =>
             for {
-              parentContext <- bridge.current
+              parentContext <- bridge.attributes
               childContext <- IO
-                .defer(bridge.current)
+                .defer(bridge.attributes)
                 .start
                 .flatMap(_.joinWithNever)
             } yield (parentContext, childContext, span.context)
@@ -53,12 +53,12 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
         }
       } yield {
         val (parentContext, childContext, spanContext) = result
-        assert(parentContext.isDefined)
-        assert(childContext.isDefined)
-        assertEquals(parentContext.get.traceId, Some(spanContext.traceId.toString))
-        assertEquals(parentContext.get.spanId, Some(spanContext.spanId.toString))
-        assertEquals(childContext.get.traceId, Some(spanContext.traceId.toString))
-        assertEquals(childContext.get.spanId, Some(spanContext.spanId.toString))
+        assert(parentContext.nonEmpty)
+        assert(childContext.nonEmpty)
+        assertEquals(parentContext("traceid").toString, spanContext.traceId.toString)
+        assertEquals(parentContext("spanid").toString, spanContext.spanId.toString)
+        assertEquals(childContext("traceid").toString, spanContext.traceId.toString)
+        assertEquals(childContext("spanid").toString, spanContext.spanId.toString)
         assertEquals(childContext, parentContext)
       }
     }
@@ -72,9 +72,9 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
           val bridge = new Otel4sBridge(tracer)
           tracer.span("parent-span").use { parentSpan =>
             for {
-              parentContext <- bridge.current
+              parentContext <- bridge.attributes
               nestedResult <- tracer.span("child-span").use { childSpan =>
-                bridge.current.map { childContext =>
+                bridge.attributes.map { childContext =>
                   (childContext, childSpan.context)
                 }
               }
@@ -83,13 +83,13 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
         }
       } yield {
         val (parentContext, (childContext, childSpanContext), parentSpanContext) = result
-        assert(parentContext.isDefined)
-        assert(childContext.isDefined)
-        assertEquals(parentContext.get.spanId, Some(parentSpanContext.spanId.toString))
-        assertEquals(childContext.get.traceId, Some(childSpanContext.traceId.toString))
-        assertEquals(childContext.get.spanId, Some(childSpanContext.spanId.toString))
-        assert(childContext.get.spanId != parentContext.get.spanId)
-        assertEquals(childContext.get.traceId, parentContext.get.traceId)
+        assert(parentContext.nonEmpty)
+        assert(childContext.nonEmpty)
+        assertEquals(parentContext("spanid").toString, parentSpanContext.spanId.toString)
+        assertEquals(childContext("traceid").toString, childSpanContext.traceId.toString)
+        assertEquals(childContext("spanid").toString, childSpanContext.spanId.toString)
+        assert(childContext("spanid").toString != parentContext("spanid").toString)
+        assertEquals(childContext("traceid").toString, parentContext("traceid").toString)
       }
     }
   }
@@ -101,22 +101,22 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
           val bridge = new Otel4sBridge(tracer)
           tracer.span("parent-span").use { parentSpan =>
             for {
-              beforeChild <- bridge.current
-              duringChild <- tracer.span("child-span").use { _ => bridge.current }
-              afterChild <- bridge.current
+              beforeChild <- bridge.attributes
+              duringChild <- tracer.span("child-span").use { _ => bridge.attributes }
+              afterChild <- bridge.attributes
             } yield (beforeChild, duringChild, afterChild, parentSpan.context)
           }
         }
       } yield {
         val (beforeChild, duringChild, afterChild, parentSpanContext) = result
-        assert(beforeChild.isDefined)
-        assert(duringChild.isDefined)
-        assert(afterChild.isDefined)
-        assertEquals(beforeChild.get.spanId, Some(parentSpanContext.spanId.toString))
-        assertEquals(afterChild.get.spanId, Some(parentSpanContext.spanId.toString))
-        assertNotEquals(duringChild.get.spanId.get, parentSpanContext.spanId.toString)
-        assertEquals(beforeChild.get.traceId, afterChild.get.traceId)
-        assertEquals(beforeChild.get, afterChild.get)
+        assert(beforeChild.nonEmpty)
+        assert(duringChild.nonEmpty)
+        assert(afterChild.nonEmpty)
+        assertEquals(beforeChild("spanid").toString, parentSpanContext.spanId.toString)
+        assertEquals(afterChild("spanid").toString, parentSpanContext.spanId.toString)
+        assertNotEquals(duringChild("spanid").toString, parentSpanContext.spanId.toString)
+        assertEquals(beforeChild("traceid").toString, afterChild("traceid").toString)
+        assertEquals(beforeChild, afterChild)
       }
     }
   }
@@ -131,14 +131,14 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
             fiberA <- tracer
               .span("span-a")
               .use { spanA =>
-                bridge.current.map(ctx => (ctx, spanA.context))
+                bridge.attributes.map(ctx => (ctx, spanA.context))
               }
               .start
 
             fiberB <- tracer
               .span("span-b")
               .use { spanB =>
-                bridge.current.map(ctx => (ctx, spanB.context))
+                bridge.attributes.map(ctx => (ctx, spanB.context))
               }
               .start
 
@@ -148,9 +148,9 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
         }
       } yield {
         val ((contextA, spanA), (contextB, spanB)) = result
-        assertEquals(contextA.get.spanId, Some(spanA.spanId.toString))
-        assertEquals(contextB.get.spanId, Some(spanB.spanId.toString))
-        assertNotEquals(contextA.get.spanId, contextB.get.spanId)
+        assertEquals(contextA("spanid").toString, spanA.spanId.toString)
+        assertEquals(contextB("spanid").toString, spanB.spanId.toString)
+        assertNotEquals(contextA("spanid").toString, contextB("spanid").toString)
       }
     }
   }
@@ -161,16 +161,16 @@ class Otel4sBridgeSuite extends CatsEffectSuite {
         tracer <- testkit.tracerProvider.get("bridges-test")
         bridge = new Otel4sBridge(tracer)
         result <- for {
-          before <- bridge.current
+          before <- bridge.attributes
           during <- tracer.span("test-span").use { _ =>
-            bridge.current
+            bridge.attributes
           }
-          after <- bridge.current
+          after <- bridge.attributes
         } yield (before, during, after)
       } yield {
         val (before, during, after) = result
         assert(before.isEmpty)
-        assert(during.isDefined)
+        assert(during.nonEmpty)
         assert(after.isEmpty)
       }
     }

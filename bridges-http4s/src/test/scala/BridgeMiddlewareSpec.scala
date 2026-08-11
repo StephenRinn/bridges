@@ -5,10 +5,11 @@ import munit.CatsEffectSuite
 import org.http4s.{Header, HttpApp, Method, Request, Response, Status}
 import org.http4s.dsl.io._
 import org.http4s.implicits.http4sLiteralsSyntax
+import org.scalatest.PrivateMethodTester
 import org.typelevel.ci.CIStringSyntax
 import util.TestLogSink
 
-class BridgeMiddlewareSpec extends CatsEffectSuite {
+class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   private def setup: IO[(IOLocal[IOStorage], TestLogSink, BridgeLogger)] = {
     for {
@@ -53,11 +54,12 @@ class BridgeMiddlewareSpec extends CatsEffectSuite {
   }
 
   test("context is available inside of route") {
+    val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
     setup.flatMap { case (storage, _, logger) =>
       val app = BridgeMiddleware(logger) {
         HttpApp { _ =>
           for {
-            ctx <- storage.get
+            ctx <- logger.invokePrivate(getStorage())
             response <- Ok(s"${ctx.requestId}|${ctx.correlationId}")
           } yield response
         }
