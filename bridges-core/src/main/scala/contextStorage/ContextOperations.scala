@@ -1,25 +1,25 @@
 /*
- * /*
- *  * Copyright 2026 Stephen Rinn
- *  *
- *  * Licensed under the Apache License, Version 2.0 (the "License");
- *  * you may not use this file except in compliance with the License.
- *  * You may obtain a copy of the License at
- *  *
- *  *     http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing, software
- *  * distributed under the License is distributed on an "AS IS" BASIS,
- *  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  * See the License for the specific language governing permissions and
- *  * limitations under the License.
- *  */
+ * Copyright 2026 Stephen Rinn
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package contextStorage
 
-import cats.effect.{IO, IOLocal}
-import logEvent.{LogEvent, LogLevel}
+import cats.effect.IO
+import cats.effect.IOLocal
+import logEvent.LogEvent
+import logEvent.LogLevel
 
 final class ContextOperations(
     private val local: IOLocal[IOStorage],
@@ -48,8 +48,9 @@ final class ContextOperations(
   }
 
   def updateRebuildLog(event: LogEvent, level: LogLevel): IO[Unit] = {
+    val modifiedEvent = event.toStoredLog
     local.modify { storage =>
-      val updated = storage.rebuildLog :+ RebuildLog(event, level)
+      val updated = storage.rebuildLog :+ RebuildLog(modifiedEvent)
       if (updated.size <= maxBuffer) {
         (storage.copy(rebuildLog = updated), ())
       } else {

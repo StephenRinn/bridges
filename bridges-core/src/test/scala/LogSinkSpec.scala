@@ -1,9 +1,12 @@
-import cats.effect.{IO, IOLocal}
+import cats.effect.IO
+import cats.effect.IOLocal
 import cats.implicits.catsSyntaxParallelTraverse_
-import contextStorage.{IOStorage, RebuildLog}
-import logger.{BridgeLogger, BridgeLoggerImpl}
+import contextStorage.IOStorage
+import logEvent.LogLevel.Info
+import logger.BridgeLogger
 import munit.CatsEffectSuite
-import util.{LogEntry, TestLogSink}
+import util.LogEntry
+import util.TestLogSink
 
 class LogSinkSpec extends CatsEffectSuite {
   test("Logger should include correlation id") {
@@ -13,7 +16,7 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger <- BridgeLogger.builder().build(sink)
 
       _ <- storage.update(_.copy(correlationId = "abc"))
 
@@ -33,12 +36,12 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger <- BridgeLogger.builder().withMinLevel(Info).build(sink)
 
-      _ <- storage.update(_.copy(correlationId = "PreUpdateTest"))
+      _ <- logger.setCorrelationId("PreUpdateTest")
       _ <- logger.info("first")
 
-      _ <- storage.update(_.copy(correlationId = "UpdateTest"))
+      _ <- logger.setCorrelationId("UpdateTest")
       _ <- logger.info("second")
 
       logs <- sink.messages
@@ -52,9 +55,9 @@ class LogSinkSpec extends CatsEffectSuite {
     for {
       storage <- IOLocal(IOStorage.empty)
       sink <- TestLogSink.create
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger <- BridgeLogger.builder().build(sink)
 
-      _ <- storage.update(_.copy(correlationId = "abc"))
+      _ <- logger.setCorrelationId("abc")
 
       _ <- logger.info("before")
 
@@ -76,14 +79,10 @@ class LogSinkSpec extends CatsEffectSuite {
 
         sink <- TestLogSink.create
 
-        logger = new BridgeLoggerImpl(storage, sink)
+        logger <- BridgeLogger.builder().build(sink)
 
-        _ <- storage.update(
-          _.copy(
-            correlationId = s"corr-$id",
-            requestId = s"req-$id",
-          ),
-        )
+        _ <- logger.setCorrelationId(s"corr-$id")
+        _ <- logger.setRequestId(s"req-$id")
 
         _ <- List
           .fill(10)(logger.info("processing"))
@@ -129,30 +128,24 @@ class LogSinkSpec extends CatsEffectSuite {
         id: Int,
         storage: IOLocal[IOStorage],
         logger: BridgeLogger,
-    ): IO[Unit] =
-      storage.set(
-        IOStorage(
-          requestId = s"req-$id",
-          correlationId = s"corr-$id",
-          values = Map.empty,
-          startTime = None,
-          endTime = None,
-          sampled = None,
-          rebuildLog = List[RebuildLog]().empty,
-        ),
-      ) *>
-        List
+    ): IO[Unit] = {
+      for {
+        _ <- logger.setCorrelationId(s"corr-$id")
+        _ <- logger.setRequestId(s"req-$id")
+        _ <- List
           .fill(10)(
             IO.cede *> logger.info(s"processing-$id") *> IO.cede,
           )
           .parSequence_
+      } yield ()
+    }
 
     for {
       storage <- IOLocal(IOStorage.empty)
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger <- BridgeLogger.builder().build(sink)
 
       _ <- List(
         request(1, storage, logger),
@@ -189,22 +182,11 @@ class LogSinkSpec extends CatsEffectSuite {
 
     def request(
         id: Int,
-        storage: IOLocal[IOStorage],
         logger: BridgeLogger,
     ): IO[Unit] =
       for {
-        _ <- storage.set(
-          IOStorage(
-            requestId = s"req-$id",
-            correlationId = s"corr-$id",
-            values = Map.empty,
-            startTime = None,
-            endTime = None,
-            sampled = None,
-            rebuildLog = List[RebuildLog]().empty,
-          ),
-        )
-
+        _ <- logger.setCorrelationId(s"corr-$id")
+        _ <- logger.setRequestId(s"req-$id")
         _ <- List
           .fill(LogsPerRequest)(
             (IO.cede *> logger.info(s"request-$id") *> IO.cede).start
@@ -219,10 +201,10 @@ class LogSinkSpec extends CatsEffectSuite {
 
       sink <- TestLogSink.create
 
-      logger = new BridgeLoggerImpl(storage, sink)
+      logger <- BridgeLogger.builder().build(sink)
 
       _ <- (1 to RequestCount).toList
-        .parTraverse_(request(_, storage, logger))
+        .parTraverse_(request(_, logger))
 
       logs <- sink.messages
 

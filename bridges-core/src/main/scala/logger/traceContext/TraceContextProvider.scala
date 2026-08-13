@@ -14,33 +14,18 @@
  * limitations under the License.
  */
 
-package contextStorage
+package logger.traceContext
 
-import logEvent._
+import cats.effect.IO
+import logEvent.LogValue
 
-final case class IOStorage(
-    requestId: String,
-    correlationId: String,
-    values: Map[String, String],
-    startTime: Option[Long],
-    endTime: Option[Long],
-    sampled: Option[Boolean],
-    rebuildLog: List[RebuildLog],
-)
+trait TraceContextProvider {
+  def attributes: IO[Map[String, LogValue]]
+}
 
-final case class RebuildLog(
-    log: LogEvent,
-)
-
-object IOStorage {
-  val empty: IOStorage =
-    IOStorage(
-      "",
-      "",
-      Map[String, String](),
-      None,
-      None,
-      sampled = None,
-      List[RebuildLog]().empty,
-    )
+object TraceContextProvider {
+  val noop: TraceContextProvider =
+    new TraceContextProvider {
+      override def attributes: IO[Map[String, LogValue]] = IO.pure(Map[String, LogValue]().empty)
+    }
 }

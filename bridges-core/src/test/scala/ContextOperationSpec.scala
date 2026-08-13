@@ -1,5 +1,8 @@
-import cats.effect.{Clock, IO, IOLocal}
-import contextStorage.{ContextOperations, IOStorage}
+import cats.effect.Clock
+import cats.effect.IO
+import cats.effect.IOLocal
+import contextStorage.ContextOperations
+import contextStorage.IOStorage
 import munit.CatsEffectSuite
 
 class ContextOperationSpec extends CatsEffectSuite {

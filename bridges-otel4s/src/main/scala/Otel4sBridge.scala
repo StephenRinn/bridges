@@ -14,33 +14,22 @@
  * limitations under the License.
  */
 
-package contextStorage
-
+import cats.effect.IO
+import logEvent.LogEvent.attribute
 import logEvent._
+import logger.traceContext.TraceContextProvider
+import org.typelevel.otel4s.trace.Tracer
 
-final case class IOStorage(
-    requestId: String,
-    correlationId: String,
-    values: Map[String, String],
-    startTime: Option[Long],
-    endTime: Option[Long],
-    sampled: Option[Boolean],
-    rebuildLog: List[RebuildLog],
-)
-
-final case class RebuildLog(
-    log: LogEvent,
-)
-
-object IOStorage {
-  val empty: IOStorage =
-    IOStorage(
-      "",
-      "",
-      Map[String, String](),
-      None,
-      None,
-      sampled = None,
-      List[RebuildLog]().empty,
-    )
+final class Otel4sBridge(
+    tracer: Tracer[IO],
+) extends TraceContextProvider {
+  override def attributes: IO[Map[String, LogValue]] = {
+    tracer.currentSpanContext.map(_.map { spanContext =>
+      Map(
+        attribute("traceid", spanContext.traceId.toString()),
+        attribute("spanid", spanContext.spanId.toString()),
+        attribute("traceflags", spanContext.traceFlags.toString()),
+      )
+    }.getOrElse(Map[String, LogValue]().empty))
+  }
 }

@@ -1,6 +1,7 @@
 package util
 
-import cats.effect.{IO, Ref}
+import cats.effect.IO
+import cats.effect.Ref
 import logEvent.LogLevel._
 import logEvent._
 import logSink.LogSink
@@ -12,32 +13,40 @@ case class LogEntry(
 
 class TestLogSink(ref: Ref[IO, Vector[LogEntry]]) extends LogSink {
 
-  protected def log(event: LogEvent): IO[Unit] = IO()
+  def log(event: LogEvent): IO[Unit] = {
+    event.level match {
+      case LogLevel.Trace => trace(event)
+      case LogLevel.Debug => debug(event)
+      case LogLevel.Info => info(event)
+      case LogLevel.Warn => warn(event)
+      case LogLevel.Error => error(event)
+    }
+  }
 
-  override def trace(event: LogEvent): IO[Unit] = {
+  def trace(event: LogEvent): IO[Unit] = {
     for {
       _ <- ref.update(_ :+ LogEntry(Trace, event.toString))
     } yield ()
   }
 
-  override def debug(event: LogEvent): IO[Unit] = {
+  def debug(event: LogEvent): IO[Unit] = {
     for {
       _ <- ref.update(_ :+ LogEntry(Debug, event.toString))
     } yield ()
   }
 
-  override def info(event: LogEvent): IO[Unit] = {
+  def info(event: LogEvent): IO[Unit] = {
     for {
       _ <- ref.update(_ :+ LogEntry(Info, event.toString))
     } yield ()
   }
 
-  override def warn(event: LogEvent): IO[Unit] =
+  def warn(event: LogEvent): IO[Unit] =
     for {
       _ <- ref.update(_ :+ LogEntry(Warn, event.toString))
     } yield ()
 
-  override def error(event: LogEvent): IO[Unit] =
+  def error(event: LogEvent): IO[Unit] =
     for {
       _ <- ref.update(_ :+ LogEntry(Error, event.toString))
     } yield ()

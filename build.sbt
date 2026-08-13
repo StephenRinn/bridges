@@ -1,4 +1,4 @@
-ThisBuild / version := "1.0.0"
+ThisBuild / version := "1.0.1"
 ThisBuild / description :=
   "Context-aware logging for Cats Effect"
 ThisBuild / organization := "io.github.stephenrinn"
@@ -41,6 +41,7 @@ ThisBuild / headerLicense := Some(
 
 val http4sVersion = "0.23.34"
 val catsVersion = "3.7.0"
+val otel4sVersion = "0.19.0"
 
 ThisBuild / developers := List(
   Developer(
@@ -55,6 +56,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.typelevel" %% "cats-effect" % catsVersion,
     "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
+    "org.scalatest" %% "scalatest" % "3.2.20" % Test,
   ),
 )
 
@@ -67,6 +69,19 @@ lazy val core = project
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6",
       "ch.qos.logback" % "logback-classic" % "1.5.32",
       "io.circe" %% "circe-core" % "0.14.15",
+    ),
+  )
+
+lazy val otel4s = project
+  .in(file("bridges-otel4s"))
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    name := "bridges-otel4s",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "otel4s-sdk" % otel4sVersion,
+      "org.typelevel" %% "otel4s-sdk-exporter" % otel4sVersion,
+      "org.typelevel" %% "otel4s-sdk-testkit" % otel4sVersion % Test,
     ),
   )
 
@@ -85,7 +100,7 @@ lazy val http4s = project
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core, http4s)
+  .aggregate(core, http4s, otel4s)
   .settings(
-    publish / skip := true
+    publish / skip := true,
   )

@@ -79,15 +79,15 @@ A logger is initialized once at application startup:
 
 ```scala
 object Main extends IOApp.Simple
-  def run = {
-    for {
-      storage <- IOLocal(IOStorage.empty)
-      // Create sink implementation here
-      logger = BridgeLogger.builder().withMinLevel(Info).build(storage, sink)
-      _ <- Bridge.initialize(logger)
-      _ <- Server.run()
-    } yield ()
-  }
+
+def run = {
+  for {
+    // Create sink implementation here
+    logger = BridgeLogger.builder().withMinLevel(Info).build(sink)
+    _ <- Bridge.initialize(logger)
+    _ <- Server.run()
+  } yield ()
+}
 }
 ```
 
@@ -116,13 +116,13 @@ minLevel = Info
 
 the behavior is:
 
-|Level| Unsampled                               |Sampled|
-|---|-----------------------------------------|---|
-|Trace| buffered if enabled otherwise discarded |emitted if sampleBelowMinLevel is enabled|
-|Debug| buffered if enabled otherwise discarded |emitted if sampleBelowMinLevel is enabled|
-|Info| buffered if enabled otherwise discarded  |emitted|
-|Warn| emitted                                 |emitted|
-|Error| emitted                                 |emitted|
+| Level | Unsampled                               | Sampled                                   |
+|-------|-----------------------------------------|-------------------------------------------|
+| Trace | buffered if enabled otherwise discarded | emitted if sampleBelowMinLevel is enabled |
+| Debug | buffered if enabled otherwise discarded | emitted if sampleBelowMinLevel is enabled |
+| Info  | buffered if enabled otherwise discarded | emitted                                   |
+| Warn  | emitted                                 | emitted                                   |
+| Error | emitted                                 | emitted                                   |
 
 When bufferBelowMinLevel is enabled, logs at or below minLevel can be
 retained for later replay.
@@ -191,7 +191,6 @@ logger.withRequest(
 
 Everything executed inside the block automatically shares the same logging context.
 
-
 `withRequest` also tracks request lifecycle timing and records successful,
 failed, and cancelled completion.
 ---
@@ -253,9 +252,11 @@ When no sampling decision is provided, Bridges generates one using the configure
 of the request.
 
 For example:
+
 ```scala
 sampleRate = 0.1F
 ```
+
 approximately 10% of the requests will be sampled. Sampling applies to requests
 not individual log events.
 
@@ -271,12 +272,15 @@ emitted.
 If the request later reaches the replay level, Bridges replays the buffered logs before emitting the triggering event.
 
 Example:
+
 ```text
 minLevel = Info
 replayAllLogLevel = Warn
 bufferBelowMinLevel = true
 ```
+
 an unsampled request may produce:
+
 ```text
 Debug -> buffered
 Info -> buffered

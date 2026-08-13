@@ -1,21 +1,18 @@
 /*
- * /*
- *  * Copyright 2026 Stephen Rinn
- *  *
- *  * Licensed under the Apache License, Version 2.0 (the "License");
- *  * you may not use this file except in compliance with the License.
- *  * You may obtain a copy of the License at
- *  *
- *  *     http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing, software
- *  * distributed under the License is distributed on an "AS IS" BASIS,
- *  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  * See the License for the specific language governing permissions and
- *  * limitations under the License.
- *  */
+ * Copyright 2026 Stephen Rinn
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
 package logger
 
 import cats.effect.Clock
@@ -29,22 +26,29 @@ import logEvent.LogEvent
 import logEvent.LogLevel
 import logEvent.LogLevel._
 import logSink.LogSink
+import logger.traceContext.TraceContextProvider
 import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
 
 trait BridgeLogger {
   def trace(msg: String): IO[Unit]
   def trace(msg: String, values: Map[String, String]): IO[Unit]
+  def traceUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
   def debug(msg: String): IO[Unit]
   def debug(msg: String, values: Map[String, String]): IO[Unit]
+  def debugUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
   def info(msg: String): IO[Unit]
   def info(msg: String, values: Map[String, String]): IO[Unit]
+  def infoUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
   def warn(msg: String): IO[Unit]
   def warn(msg: String, values: Map[String, String]): IO[Unit]
+  def warnUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
   def error(msg: String): IO[Unit]
   def error(msg: String, values: Map[String, String]): IO[Unit]
+  def errorUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
   def error(msg: String, e: Throwable): IO[Unit]
   def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit]
+  def errorUpdateContext(msg: String, e: Throwable, values: Map[String, String]): IO[Unit]
   def withRequest[A](
       values: Map[String, String] = Map[String, String](),
       sampleRequest: Option[Boolean] = None,
@@ -56,8 +60,9 @@ trait BridgeLogger {
   def setRequestId(id: String): IO[Unit]
 }
 
-final class BridgeLoggerImpl(
+final class BridgeLoggerImpl private[logger] (
     ioStorage: IOLocal[IOStorage],
+    traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
@@ -67,19 +72,27 @@ final class BridgeLoggerImpl(
   private def toEvent(
       message: String,
       level: LogLevel,
+      storage0: Option[IOStorage] = None,
       e: Option[Throwable] = None,
-  ): IO[LogEvent] = {
+      values: Map[String, String] = Map[String, String]().empty,
+  ): IO[(LogEvent, IOStorage)] = {
     for {
       now <- Clock[IO].realTime
-      storage <- contextOps.get
+      storage <-
+        if (storage0.isDefined) {
+          IO.pure(storage0.get)
+        } else { contextOps.get }
+      attributes <- traceContextProvider.attributes
       event = LogEvent(
         level = level,
         message = message,
         timestamp = now.toMillis,
         context = storage,
+        attributes = attributes,
         throwable = e,
+        logContext = values,
       )
-    } yield event
+    } yield (event, storage)
   }
 
   private def rebuildAndPrint(
@@ -96,9 +109,8 @@ final class BridgeLoggerImpl(
     } yield ()
   }
 
-  private def sampleEligible: IO[Boolean] = {
+  private def sampleEligible(storage: IOStorage): IO[Boolean] = {
     for {
-      storage <- contextOps.get
       sample <-
         if (storage.sampled.isEmpty) {
           val sampled = Random.between(0.0f, 1.0f) < bridgeLoggerConfig.sampleRate
@@ -107,6 +119,23 @@ final class BridgeLoggerImpl(
           } yield sampled
         } else IO(storage.sampled.get)
     } yield sample
+  }
+
+  private def evaluateToEvent(level: LogLevel, ioStorage: IOStorage): Boolean = {
+    val sampleCheck = ioStorage.sampled.contains(true) || ioStorage.sampled.isEmpty
+    level match {
+      case l if l > bridgeLoggerConfig.minLevel => true
+      case l if l == bridgeLoggerConfig.minLevel =>
+        if (sampleCheck) {
+          true
+        } else false
+      case l if l < bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel => true
+      case l if l < bridgeLoggerConfig.minLevel && bridgeLoggerConfig.sampleBelowMinLevel =>
+        if (sampleCheck) {
+          true
+        } else false
+      case _ => false
+    }
 
   }
 
@@ -123,10 +152,13 @@ final class BridgeLoggerImpl(
     param.level <= bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel
   }
 
-  private def evaluateLog(param: LogEvent, fa: LogEvent => IO[Unit]): IO[Unit] = {
+  private def evaluateLog(
+      param: LogEvent,
+      storage: IOStorage,
+      fa: LogEvent => IO[Unit],
+  ): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      sampled <- sampleEligible
+      sampled <- sampleEligible(storage)
       bufferDump = bufferDumpEligible(param)
       emit = emitEligible(param, sampled)
       buffer = bufferEligible(param)
@@ -134,7 +166,10 @@ final class BridgeLoggerImpl(
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
         case (_, true, false) =>
           for {
-            _ <- contextOps.updateRebuildLog(param, param.level)
+            _ <-
+              if (bridgeLoggerConfig.duplicateEntriesOnBufferDump) {
+                contextOps.updateRebuildLog(param, param.level)
+              } else IO.unit
             _ <- fa(param)
           } yield ()
         case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
@@ -145,24 +180,51 @@ final class BridgeLoggerImpl(
 
   private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
     rebuildLogs.map { rebuildLog =>
-      rebuildLog.level match {
-        case LogLevel.Trace => sink.trace(rebuildLog.log)
-        case LogLevel.Debug => sink.debug(rebuildLog.log)
-        case LogLevel.Info => sink.info(rebuildLog.log)
-        case LogLevel.Warn => sink.warn(rebuildLog.log)
-        case LogLevel.Error => sink.error(rebuildLog.log)
-      }
+      sink.log(rebuildLog.log)
     }
   }
 
   override def trace(msg: String): IO[Unit] = {
     for {
-      event <- toEvent(msg, Trace)
-      _ <- evaluateLog(event, sink.trace)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(Trace, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = Trace, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
   override def trace(msg: String, values: Map[String, String]): IO[Unit] = {
+    val level = Trace
+    for {
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(
+              message = msg,
+              level = level,
+              values = values,
+              storage0 = Some(storage),
+            )
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
+    } yield ()
+  }
+
+  /** Values are added to the context, not based on this log event only
+    */
+  override def traceUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
       _ <- trace(msg)
@@ -170,13 +232,50 @@ final class BridgeLoggerImpl(
   }
 
   override def debug(msg: String): IO[Unit] = {
+    val level = Debug
     for {
-      event <- toEvent(msg, Debug)
-      _ <- evaluateLog(event, sink.debug)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
-  override def debug(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def debug(
+      msg: String,
+      values: Map[String, String] = Map[String, String]().empty,
+  ): IO[Unit] = {
+    val level = Debug
+    for {
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(
+              message = msg,
+              level = level,
+              values = values,
+              storage0 = Some(storage),
+            )
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
+    } yield ()
+  }
+
+  /** Values are added to the context, not based on this log event only
+    */
+  override def debugUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
       _ <- debug(msg)
@@ -184,13 +283,50 @@ final class BridgeLoggerImpl(
   }
 
   override def info(msg: String): IO[Unit] = {
+    val level = Info
     for {
-      event <- toEvent(msg, Info)
-      _ <- evaluateLog(event, sink.info)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
-  override def info(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def info(
+      msg: String,
+      values: Map[String, String] = Map[String, String]().empty,
+  ): IO[Unit] = {
+    val level = Info
+    for {
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(
+              message = msg,
+              level = level,
+              values = values,
+              storage0 = Some(storage),
+            )
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
+    } yield ()
+  }
+
+  /** Values are added to the context, not based on this log event only
+    */
+  override def infoUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
       _ <- info(msg)
@@ -198,13 +334,50 @@ final class BridgeLoggerImpl(
   }
 
   override def warn(msg: String): IO[Unit] = {
+    val level = Warn
     for {
-      event <- toEvent(msg, Warn)
-      _ <- evaluateLog(event, sink.warn)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
-  override def warn(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def warn(
+      msg: String,
+      values: Map[String, String] = Map[String, String]().empty,
+  ): IO[Unit] = {
+    val level = Warn
+    for {
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(
+              message = msg,
+              level = level,
+              values = values,
+              storage0 = Some(storage),
+            )
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
+    } yield ()
+  }
+
+  /** Values are added to the context, not based on this log event only
+    */
+  override def warnUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
       _ <- warn(msg)
@@ -213,12 +386,21 @@ final class BridgeLoggerImpl(
 
   override def error(msg: String): IO[Unit] = {
     for {
-      event <- toEvent(msg, Error)
-      _ <- evaluateLog(event, sink.error)
+      event <- toEvent(message = msg, level = Error)
+      _ <- evaluateLog(event._1, event._2, sink.log)
     } yield ()
   }
 
   override def error(msg: String, values: Map[String, String]): IO[Unit] = {
+    for {
+      event <- toEvent(message = msg, level = Error, values = values)
+      _ <- evaluateLog(event._1, event._2, sink.log)
+    } yield ()
+  }
+
+  /** Values are added to the context, not based on this log event only
+    */
+  override def errorUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
       _ <- error(msg)
@@ -227,12 +409,25 @@ final class BridgeLoggerImpl(
 
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
-      event <- toEvent(msg, Error, Some(e))
-      _ <- evaluateLog(event, sink.error)
+      event <- toEvent(message = msg, level = Error, e = Some(e))
+      _ <- evaluateLog(event._1, event._2, sink.log)
     } yield ()
   }
 
   override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
+    for {
+      event <- toEvent(message = msg, level = Error, e = Some(e), values = values)
+      _ <- evaluateLog(event._1, event._2, sink.log)
+    } yield ()
+  }
+
+  /** Values are added to the context, not based on this log event only
+    */
+  override def errorUpdateContext(
+      msg: String,
+      e: Throwable,
+      values: Map[String, String],
+  ): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
       _ <- error(msg, e)
@@ -298,7 +493,7 @@ final class BridgeLoggerImpl(
 
   override def setRequestId(id: String): IO[Unit] = contextOps.setRequest(id)
 
-  def getStorage: IO[IOStorage] = ioStorage.get
+  private def getStorage: IO[IOStorage] = ioStorage.get
 }
 
 object BridgeLogger {
@@ -307,8 +502,10 @@ object BridgeLogger {
   }
 
   case class builder(
+      traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
       minLevel: LogLevel = Info,
       replayAllLogLevel: LogLevel = Warn,
+      duplicateEntriesOnBufferDump: Boolean = false,
       sampleRate: Float = 1.0f,
       sampleIncludesBelowMinLevel: Boolean = false,
       bufferMessagesBelowMinLevel: Boolean = false,
@@ -316,33 +513,33 @@ object BridgeLogger {
   ) {
 
     /** Minimum level used as the sampling/buffering boundary.
-     *
-     * Logs above this level are always emitted.
-     *
-     * Logs at this level are emitted only when the request is sampled.
-     *
-     * Logs below this level are emitted only when the request is sampled and
-     * sampleBelowMinLevel is enabled.
-     *
-     * When buffering is enabled, logs at or below this level are retained so
-     * they can be replayed when a log reaches replayAllLogLevel.
-     *
-     * @param logLevel
-     *   Minimum level boundary for sampling and buffering.
-     */
+      *
+      * Logs above this level are always emitted.
+      *
+      * Logs at this level are emitted only when the request is sampled.
+      *
+      * Logs below this level are emitted only when the request is sampled and sampleBelowMinLevel
+      * is enabled.
+      *
+      * When buffering is enabled, logs at or below this level are retained so they can be replayed
+      * when a log reaches replayAllLogLevel.
+      *
+      * @param logLevel
+      *   Minimum level boundary for sampling and buffering.
+      */
     def withMinLevel(logLevel: LogLevel): builder = {
       copy(minLevel = logLevel)
     }
 
     /** Determines the percentage of requests that are sampled.
-     *
-     * Sampling is evaluated once per request and stored in the request context.
-     * When a request is sampled, logs at the minimum level may be emitted and,
-     * when enabled, logs below the minimum level may also be emitted.
-     *
-     * @param sampleRate
-     *   Fraction of requests to sample, from 0.0 to 1.0.
-     */
+      *
+      * Sampling is evaluated once per request and stored in the request context. When a request is
+      * sampled, logs at the minimum level may be emitted and, when enabled, logs below the minimum
+      * level may also be emitted.
+      *
+      * @param sampleRate
+      *   Fraction of requests to sample, from 0.0 to 1.0.
+      */
     def sampleRate(sampleRate: Float): builder = {
       copy(sampleRate = sampleRate)
     }
@@ -359,27 +556,45 @@ object BridgeLogger {
       copy(bufferMessagesBelowMinLevel = bufferBelowMinLevel)
     }
 
+    /** Set whether an emitted log is also stored in the buffer to condense all logs and more easily
+      * see order etc. Defaults to false
+      */
+    def duplicateEntriesOnBufferDump(duplicate: Boolean): builder = {
+      copy(duplicateEntriesOnBufferDump = duplicate)
+    }
+
     /** This is a customizable level for what causes a buffer replay. If a log meets or exceeds this
       * level all logs will be replayed.
       */
     def replayAllLogLevel(replayAllLogLevel: LogLevel): builder = {
       copy(replayAllLogLevel = replayAllLogLevel)
     }
+
+    def traceContextProvider(traceContextProvider: TraceContextProvider): builder = {
+      copy(traceContextProvider = traceContextProvider)
+    }
+
     private def toBridgeLoggerConfig: BridgeLoggerConfig = {
       new BridgeLoggerConfig(
         minLevel = this.minLevel,
         replayAllLogLevel = this.replayAllLogLevel,
+        duplicateEntriesOnBufferDump = this.duplicateEntriesOnBufferDump,
         sampleRate = this.sampleRate,
         sampleBelowMinLevel = this.sampleIncludesBelowMinLevel,
         bufferBelowMinLevel = this.bufferMessagesBelowMinLevel,
         bufferSize = this.logBufferSize,
       )
     }
-    def build(ioStorage: IOLocal[IOStorage], sink: LogSink): BridgeLogger =
-      new BridgeLoggerImpl(
-        ioStorage = ioStorage,
-        sink = sink,
-        bridgeLoggerConfig = toBridgeLoggerConfig,
-      )
+
+    def build(sink: LogSink): IO[BridgeLogger] = {
+      IOLocal(IOStorage.empty).map { ioStorage =>
+        new BridgeLoggerImpl(
+          traceContextProvider = this.traceContextProvider,
+          ioStorage = ioStorage,
+          sink = sink,
+          bridgeLoggerConfig = toBridgeLoggerConfig,
+        )
+      }
+    }
   }
 }
