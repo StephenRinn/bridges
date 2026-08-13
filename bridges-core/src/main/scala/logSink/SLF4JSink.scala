@@ -20,18 +20,27 @@ package logSink
 
 import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
-import logEvent.{LogEvent, LogLevel}
+import logEvent.LogEvent
+import logEvent.LogLevel
 
 class SLF4JSink extends LogSink with LazyLogging {
 
   private def format(logEvent: LogEvent): String = {
     val ctx = logEvent.context
-    val values =
+    val logCtx = logEvent.logContext
+
+    val logValues =
+      if (logCtx.isEmpty) ""
+      else {
+        logCtx.map { case (k, v) => s"$k=$v" }.mkString(", ")
+      }
+    val ioStorageValues =
       if (ctx.values.isEmpty) ""
       else {
-        val kVString = ctx.values.map { case (k, v) => s"$k=$v" }.mkString(", ")
-        s"[values=$kVString] "
+        ctx.values.map { case (k, v) => s"$k=$v" }.mkString(", ")
       }
+
+    val values = s"[values=$ioStorageValues$logValues] "
 
     val throwO =
       if (logEvent.throwable.isEmpty) ""

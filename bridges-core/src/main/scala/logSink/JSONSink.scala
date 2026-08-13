@@ -19,9 +19,11 @@
 package logSink
 
 import cats.effect.IO
-import io.circe.{Encoder, Json}
+import io.circe.Encoder
+import io.circe.Json
 import io.circe.syntax.EncoderOps
-import logEvent.{LogEvent, LogValueEncoder}
+import logEvent.LogEvent
+import logEvent.LogValueEncoder
 import logSink.JsonHelpers._
 
 class JSONSink extends LogSink {
@@ -32,6 +34,8 @@ class JSONSink extends LogSink {
       case _ => None
     }
 
+    val values = ctx.values ++ logEvent.logContext
+
     val attributeObject = LogValueEncoder.encodeAttribute(logEvent.attributes)
 
     Json
@@ -40,7 +44,7 @@ class JSONSink extends LogSink {
         "cid" -> ctx.correlationId.asJson,
         "rid" -> ctx.requestId.asJson,
         "duration" -> duration.asJson,
-        "values" -> ctx.values.asJson,
+        "values" -> values.asJson,
         "attributes" -> attributeObject,
         "level" -> logEvent.level.toString.asJson,
         "message" -> logEvent.message.asJson,

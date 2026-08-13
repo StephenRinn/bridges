@@ -18,11 +18,15 @@
 
 package logger
 
-import cats.effect.{Clock, IO, IOLocal, LiftIO}
+import cats.effect.Clock
+import cats.effect.IO
+import cats.effect.IOLocal
+import cats.effect.LiftIO
 import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
-import logEvent.{LogEvent, LogLevel}
+import logEvent.LogEvent
+import logEvent.LogLevel
 import logEvent.LogLevel._
 import logSink.LogSink
 import logger.traceContext.TraceContextProvider
@@ -71,23 +75,27 @@ final class BridgeLoggerImpl private[logger] (
   private def toEvent(
       message: String,
       level: LogLevel,
+      storage0: Option[IOStorage] = None,
       e: Option[Throwable] = None,
       values: Map[String, String] = Map[String, String]().empty,
-  ): IO[LogEvent] = {
+  ): IO[(LogEvent, IOStorage)] = {
     for {
       now <- Clock[IO].realTime
-      storage <- contextOps.get
+      storage <-
+        if (storage0.isDefined) {
+          IO.pure(storage0.get)
+        } else { contextOps.get }
       attributes <- traceContextProvider.attributes
-      updatedStorage = storage.copy(values = storage.values ++ values)
       event = LogEvent(
         level = level,
         message = message,
         timestamp = now.toMillis,
-        context = updatedStorage,
+        context = storage,
         attributes = attributes,
         throwable = e,
+        logContext = values,
       )
-    } yield event
+    } yield (event, storage)
   }
 
   private def rebuildAndPrint(
@@ -104,9 +112,8 @@ final class BridgeLoggerImpl private[logger] (
     } yield ()
   }
 
-  private def sampleEligible: IO[Boolean] = {
+  private def sampleEligible(storage: IOStorage): IO[Boolean] = {
     for {
-      storage <- contextOps.get
       sample <-
         if (storage.sampled.isEmpty) {
           val sampled = Random.between(0.0f, 1.0f) < bridgeLoggerConfig.sampleRate
@@ -115,6 +122,23 @@ final class BridgeLoggerImpl private[logger] (
           } yield sampled
         } else IO(storage.sampled.get)
     } yield sample
+  }
+
+  private def evaluateToEvent(level: LogLevel, ioStorage: IOStorage): Boolean = {
+    val sampleCheck = ioStorage.sampled.contains(true) || ioStorage.sampled.isEmpty
+    level match {
+      case l if l > bridgeLoggerConfig.minLevel => true
+      case l if l == bridgeLoggerConfig.minLevel =>
+        if (sampleCheck) {
+          true
+        } else false
+      case l if l < bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel => true
+      case l if l < bridgeLoggerConfig.minLevel && bridgeLoggerConfig.sampleBelowMinLevel =>
+        if (sampleCheck) {
+          true
+        } else false
+      case _ => false
+    }
 
   }
 
@@ -131,10 +155,13 @@ final class BridgeLoggerImpl private[logger] (
     param.level <= bridgeLoggerConfig.minLevel && bridgeLoggerConfig.bufferBelowMinLevel
   }
 
-  private def evaluateLog(param: LogEvent, fa: LogEvent => IO[Unit]): IO[Unit] = {
+  private def evaluateLog(
+      param: LogEvent,
+      storage: IOStorage,
+      fa: LogEvent => IO[Unit],
+  ): IO[Unit] = {
     for {
-      storage <- contextOps.get
-      sampled <- sampleEligible
+      sampled <- sampleEligible(storage)
       bufferDump = bufferDumpEligible(param)
       emit = emitEligible(param, sampled)
       buffer = bufferEligible(param)
@@ -162,15 +189,34 @@ final class BridgeLoggerImpl private[logger] (
 
   override def trace(msg: String): IO[Unit] = {
     for {
-      event <- toEvent(message = msg, level = Trace)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(Trace, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = Trace, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
   override def trace(msg: String, values: Map[String, String]): IO[Unit] = {
+    val level = Trace
     for {
-      event <- toEvent(message = msg, level = Trace, values = values)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, values = values, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -184,9 +230,19 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   override def debug(msg: String): IO[Unit] = {
+    val level = Debug
     for {
-      event <- toEvent(message = msg, level = Debug)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -194,9 +250,19 @@ final class BridgeLoggerImpl private[logger] (
       msg: String,
       values: Map[String, String] = Map[String, String]().empty,
   ): IO[Unit] = {
+    val level = Debug
     for {
-      event <- toEvent(message = msg, level = Debug, values = values)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, values = values, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -210,9 +276,19 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   override def info(msg: String): IO[Unit] = {
+    val level = Info
     for {
-      event <- toEvent(message = msg, level = Info)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -220,9 +296,19 @@ final class BridgeLoggerImpl private[logger] (
       msg: String,
       values: Map[String, String] = Map[String, String]().empty,
   ): IO[Unit] = {
+    val level = Info
     for {
-      event <- toEvent(message = msg, level = Info, values = values)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, values = values, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -236,9 +322,19 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   override def warn(msg: String): IO[Unit] = {
+    val level = Warn
     for {
-      event <- toEvent(message = msg, level = Warn)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -246,9 +342,19 @@ final class BridgeLoggerImpl private[logger] (
       msg: String,
       values: Map[String, String] = Map[String, String]().empty,
   ): IO[Unit] = {
+    val level = Warn
     for {
-      event <- toEvent(message = msg, level = Warn, values = values)
-      _ <- evaluateLog(event, sink.log)
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+      _ <-
+        if (passThrough) {
+          for {
+            event <- toEvent(message = msg, level = level, values = values, storage0 = Some(storage))
+            _ <- evaluateLog(event._1, event._2, sink.log)
+          } yield ()
+        } else {
+          IO.unit
+        }
     } yield ()
   }
 
@@ -264,14 +370,14 @@ final class BridgeLoggerImpl private[logger] (
   override def error(msg: String): IO[Unit] = {
     for {
       event <- toEvent(message = msg, level = Error)
-      _ <- evaluateLog(event, sink.log)
+      _ <- evaluateLog(event._1, event._2, sink.log)
     } yield ()
   }
 
   override def error(msg: String, values: Map[String, String]): IO[Unit] = {
     for {
       event <- toEvent(message = msg, level = Error, values = values)
-      _ <- evaluateLog(event, sink.log)
+      _ <- evaluateLog(event._1, event._2, sink.log)
     } yield ()
   }
 
@@ -287,14 +393,14 @@ final class BridgeLoggerImpl private[logger] (
   override def error(msg: String, e: Throwable): IO[Unit] = {
     for {
       event <- toEvent(message = msg, level = Error, e = Some(e))
-      _ <- evaluateLog(event, sink.log)
+      _ <- evaluateLog(event._1, event._2, sink.log)
     } yield ()
   }
 
   override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
     for {
       event <- toEvent(message = msg, level = Error, e = Some(e), values = values)
-      _ <- evaluateLog(event, sink.log)
+      _ <- evaluateLog(event._1, event._2, sink.log)
     } yield ()
   }
 
