@@ -1,8 +1,14 @@
-import cats.effect.{IO, IOLocal}
+import cats.effect.IO
+import cats.effect.IOLocal
 import contextStorage.IOStorage
 import logger._
 import munit.CatsEffectSuite
-import org.http4s.{Header, HttpApp, Method, Request, Response, Status}
+import org.http4s.Header
+import org.http4s.HttpApp
+import org.http4s.Method
+import org.http4s.Request
+import org.http4s.Response
+import org.http4s.Status
 import org.http4s.dsl.io._
 import org.http4s.implicits.http4sLiteralsSyntax
 import org.scalatest.PrivateMethodTester
