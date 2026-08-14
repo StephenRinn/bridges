@@ -18,7 +18,11 @@ package contextStorage
 
 import cats.effect.IO
 import cats.effect.IOLocal
-import logEvent.{LogEvent, LogField, LogLevel, LogValue, ToLogValue}
+import logEvent.LogEvent
+import logEvent.LogField
+import logEvent.LogLevel
+import logEvent.LogValue
+import logEvent.ToLogValue
 
 final class ContextOperations(
     private val local: IOLocal[IOStorage],
@@ -51,7 +55,7 @@ final class ContextOperations(
   }
 
   def updateValue[A: ToLogValue](key: String, value: A): IO[Unit] = {
-  updateValue(key, ToLogValue[A].toLogValue(value))
+    updateValue(key, ToLogValue[A].toLogValue(value))
   }
 
   def updateRebuildLog(event: LogEvent, level: LogLevel): IO[Unit] = {

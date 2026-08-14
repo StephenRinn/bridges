@@ -20,7 +20,8 @@ import cats.effect.IO
 import cats.effect.LiftIO
 import cats.~>
 import java.util.UUID
-import logEvent.{LogField, LogValue}
+import logEvent.LogField
+import logEvent.LogValue
 
 trait GenericBridgeLogger[F[_]] {
   def trace(msg: String, fields: LogField*): F[Unit]
@@ -47,27 +48,27 @@ object GenericBridgeLogger {
     new GenericBridgeLogger[F] {
 
       override def trace(msg: String, fields: LogField*): F[Unit] = {
-        LiftIO[F].liftIO(bridge.trace(msg, fields:_*))
+        LiftIO[F].liftIO(bridge.trace(msg, fields: _*))
       }
 
       override def debug(msg: String, fields: LogField*): F[Unit] = {
-        LiftIO[F].liftIO(bridge.debug(msg, fields:_*))
+        LiftIO[F].liftIO(bridge.debug(msg, fields: _*))
       }
 
       override def info(msg: String, fields: LogField*): F[Unit] = {
-        LiftIO[F].liftIO(bridge.info(msg, fields:_*))
+        LiftIO[F].liftIO(bridge.info(msg, fields: _*))
       }
 
       override def warn(msg: String, fields: LogField*): F[Unit] = {
-        LiftIO[F].liftIO(bridge.warn(msg, fields:_*))
+        LiftIO[F].liftIO(bridge.warn(msg, fields: _*))
       }
 
       override def error(msg: String, fields: LogField*): F[Unit] = {
-        LiftIO[F].liftIO(bridge.error(msg, fields:_*))
+        LiftIO[F].liftIO(bridge.error(msg, fields: _*))
       }
 
       override def error(msg: String, e: Throwable, fields: LogField*): F[Unit] = {
-        LiftIO[F].liftIO(bridge.error(msg, e, fields:_*))
+        LiftIO[F].liftIO(bridge.error(msg, e, fields: _*))
       }
 
       override def withRequest[A](

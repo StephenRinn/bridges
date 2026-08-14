@@ -38,7 +38,7 @@ object LogValue {
     override def toString: String = value.toString
   }
   final case class ListValue(values: Vector[LogValue]) extends LogValue {
-    override def toString: String = values.mkString("[", ", " , "]")
+    override def toString: String = values.mkString("[", ", ", "]")
   }
   final case class MapValue(values: Map[String, LogValue]) extends LogValue {
     override def toString: String = values.toString

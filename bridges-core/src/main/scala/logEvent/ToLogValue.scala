@@ -19,8 +19,8 @@ package logEvent
 trait ToLogValue[A] {
   def toLogValue(value: A): LogValue
 
-  def contraMap[B](f: B => A): ToLogValue[B] = {
-    (value: B) => toLogValue(f(value))
+  def contraMap[B](f: B => A): ToLogValue[B] = { (value: B) =>
+    toLogValue(f(value))
   }
 }
 
@@ -29,9 +29,9 @@ object ToLogValue {
     ev
 
   def instance[A](
-      f: A => LogValue
-                 ): ToLogValue[A] = {
-    (value: A) => f(value)
+      f: A => LogValue,
+  ): ToLogValue[A] = { (value: A) =>
+    f(value)
   }
 
   implicit val stringToLogValue: ToLogValue[String] =
@@ -52,29 +52,28 @@ object ToLogValue {
   implicit val logValueToLogValue: ToLogValue[LogValue] =
     identity
 
-  implicit def optionToLogValue[A: ToLogValue]: ToLogValue[Option[A]] =
-    {
-      case Some(a) => ToLogValue[A].toLogValue(a)
-      case None => LogValue.Null
-    }
+  implicit def optionToLogValue[A: ToLogValue]: ToLogValue[Option[A]] = {
+    case Some(a) => ToLogValue[A].toLogValue(a)
+    case None => LogValue.Null
+  }
 
   implicit def listToLogValue[A: ToLogValue]: ToLogValue[List[A]] =
     value =>
       LogValue.ListValue(
-        value.iterator.map(ToLogValue[A].toLogValue).toVector
+        value.iterator.map(ToLogValue[A].toLogValue).toVector,
       )
 
   implicit def vectorToLogValue[A: ToLogValue]: ToLogValue[Vector[A]] =
     value =>
       LogValue.ListValue(
-        value.iterator.map(ToLogValue[A].toLogValue).toVector
+        value.iterator.map(ToLogValue[A].toLogValue).toVector,
       )
 
-  implicit def mapToLogValue[A: ToLogValue]: ToLogValue[Map[String,A]] =
+  implicit def mapToLogValue[A: ToLogValue]: ToLogValue[Map[String, A]] =
     value =>
       LogValue.MapValue(
         value.iterator.map { case (key, a) =>
           key -> ToLogValue[A].toLogValue(a)
-        }.toMap
+        }.toMap,
       )
 }
