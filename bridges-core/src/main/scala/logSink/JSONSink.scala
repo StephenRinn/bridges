@@ -46,7 +46,7 @@ class JSONSink extends LogSink {
         "attributes" -> attributeObject,
         "level" -> logEvent.level.toString.asJson,
         "message" -> logEvent.message.asJson,
-        "error" -> logEvent.throwable.orNull.asJson,
+        "error" -> logEvent.throwable.asJson,
       )
       .noSpaces
   }

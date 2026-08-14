@@ -28,6 +28,12 @@ object ToLogValue {
   def apply[A](implicit ev: ToLogValue[A]): ToLogValue[A] =
     ev
 
+  def instance[A](
+      f: A => LogValue
+                 ): ToLogValue[A] = {
+    (value: A) => f(value)
+  }
+
   implicit val stringToLogValue: ToLogValue[String] =
     value => LogValue.StringValue(value)
 
