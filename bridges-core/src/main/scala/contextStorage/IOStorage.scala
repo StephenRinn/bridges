@@ -21,7 +21,7 @@ import logEvent._
 final case class IOStorage(
     requestId: String,
     correlationId: String,
-    values: Map[String, String],
+    values: Map[String, LogValue],
     startTime: Option[Long],
     endTime: Option[Long],
     sampled: Option[Boolean],
@@ -37,7 +37,7 @@ object IOStorage {
     IOStorage(
       "",
       "",
-      Map[String, String](),
+      Map[String, LogValue](),
       None,
       None,
       sampled = None,

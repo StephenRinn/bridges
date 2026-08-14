@@ -23,39 +23,40 @@ import cats.effect.kernel.Outcome
 import contextStorage._
 import java.util.UUID
 import logEvent.LogEvent
+import logEvent.LogField
 import logEvent.LogLevel
 import logEvent.LogLevel._
+import logEvent.LogValue
 import logSink.LogSink
 import logger.traceContext.TraceContextProvider
 import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
 
 trait BridgeLogger {
-  def trace(msg: String): IO[Unit]
-  def trace(msg: String, values: Map[String, String]): IO[Unit]
-  def traceUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
-  def debug(msg: String): IO[Unit]
-  def debug(msg: String, values: Map[String, String]): IO[Unit]
-  def debugUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
-  def info(msg: String): IO[Unit]
-  def info(msg: String, values: Map[String, String]): IO[Unit]
-  def infoUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
-  def warn(msg: String): IO[Unit]
-  def warn(msg: String, values: Map[String, String]): IO[Unit]
-  def warnUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
-  def error(msg: String): IO[Unit]
-  def error(msg: String, values: Map[String, String]): IO[Unit]
-  def errorUpdateContext(msg: String, values: Map[String, String]): IO[Unit]
-  def error(msg: String, e: Throwable): IO[Unit]
-  def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit]
-  def errorUpdateContext(msg: String, e: Throwable, values: Map[String, String]): IO[Unit]
+  def trace(msg: String, fields: LogField*): IO[Unit]
+  def traceUpdateContext(msg: String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def debug(msg: String, fields: LogField*): IO[Unit]
+  def debugUpdateContext(msg: String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def info(msg: String, fields: LogField*): IO[Unit]
+  def infoUpdateContext(msg: String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def warn(msg: String, fields: LogField*): IO[Unit]
+  def warnUpdateContext(msg: String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def error(msg: String, fields: LogField*): IO[Unit]
+  def errorUpdateContext(msg: String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def error(msg: String, e: Throwable, fields: LogField*): IO[Unit]
+  def errorUpdateContext(
+      msg: String,
+      e: Throwable,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit]
   def withRequest[A](
-      values: Map[String, String] = Map[String, String](),
+      values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
   )(fa: IO[A]): IO[A]
-  def updateValues(key: String, value: String): IO[Unit]
+  def updateValues(key: String, value: LogValue): IO[Unit]
   def setCorrelationId(id: String): IO[Unit]
   def setRequestId(id: String): IO[Unit]
 }
@@ -74,7 +75,7 @@ final class BridgeLoggerImpl private[logger] (
       level: LogLevel,
       storage0: Option[IOStorage] = None,
       e: Option[Throwable] = None,
-      values: Map[String, String] = Map[String, String]().empty,
+      values: Seq[LogField] = Seq[LogField]().empty,
   ): IO[(LogEvent, IOStorage)] = {
     for {
       now <- Clock[IO].realTime
@@ -90,7 +91,7 @@ final class BridgeLoggerImpl private[logger] (
         context = storage,
         attributes = attributes,
         throwable = e,
-        logContext = values,
+        logContext = values.iterator.map(field => field.key -> field.value()).toMap,
       )
     } yield (event, storage)
   }
@@ -136,7 +137,33 @@ final class BridgeLoggerImpl private[logger] (
         } else false
       case _ => false
     }
+  }
 
+  private def log(
+      level: LogLevel,
+      message: String,
+      fields: Seq[LogField],
+      throwable: Option[Throwable] = None,
+  ): IO[Unit] = {
+    for {
+      storage <- contextOps.get
+      passThrough = evaluateToEvent(level, storage)
+
+      _ <-
+        if (!passThrough) { IO.unit }
+        else {
+          for {
+            event <- toEvent(
+              message = message,
+              level = level,
+              storage0 = Some(storage),
+              e = throwable,
+              values = fields,
+            )
+            _ <- evaluateLog(param = event._1, storage = storage, fa = sink.log)
+          } yield ()
+        }
+    } yield ()
   }
 
   private def emitEligible(param: LogEvent, sampled: Boolean): Boolean = {
@@ -184,241 +211,99 @@ final class BridgeLoggerImpl private[logger] (
     }
   }
 
-  override def trace(msg: String): IO[Unit] = {
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(Trace, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(message = msg, level = Trace, storage0 = Some(storage))
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
-    } yield ()
-  }
-
-  override def trace(msg: String, values: Map[String, String]): IO[Unit] = {
-    val level = Trace
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(
-              message = msg,
-              level = level,
-              values = values,
-              storage0 = Some(storage),
-            )
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
-    } yield ()
+  override def trace(msg: String, fields: LogField*): IO[Unit] = {
+    log(Trace, msg, fields)
   }
 
   /** Values are added to the context, not based on this log event only
     */
-  override def traceUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def traceUpdateContext(
+      msg: String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
-      _ <- trace(msg)
-    } yield ()
-  }
-
-  override def debug(msg: String): IO[Unit] = {
-    val level = Debug
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
+      _ <- trace(msg = msg, fields = fields: _*)
     } yield ()
   }
 
   override def debug(
       msg: String,
-      values: Map[String, String] = Map[String, String]().empty,
+      fields: LogField*,
   ): IO[Unit] = {
-    val level = Debug
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(
-              message = msg,
-              level = level,
-              values = values,
-              storage0 = Some(storage),
-            )
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
-    } yield ()
+    log(level = Debug, message = msg, fields = fields)
   }
 
   /** Values are added to the context, not based on this log event only
     */
-  override def debugUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def debugUpdateContext(
+      msg: String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
-      _ <- debug(msg)
-    } yield ()
-  }
-
-  override def info(msg: String): IO[Unit] = {
-    val level = Info
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
+      _ <- debug(msg, fields: _*)
     } yield ()
   }
 
   override def info(
       msg: String,
-      values: Map[String, String] = Map[String, String]().empty,
+      values: LogField*,
   ): IO[Unit] = {
-    val level = Info
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(
-              message = msg,
-              level = level,
-              values = values,
-              storage0 = Some(storage),
-            )
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
-    } yield ()
+    log(level = Info, message = msg, fields = values)
   }
 
   /** Values are added to the context, not based on this log event only
     */
-  override def infoUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values)
-      _ <- info(msg)
-    } yield ()
-  }
-
-  override def warn(msg: String): IO[Unit] = {
-    val level = Warn
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(message = msg, level = level, storage0 = Some(storage))
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
-    } yield ()
-  }
-
-  override def warn(
+  override def infoUpdateContext(
       msg: String,
-      values: Map[String, String] = Map[String, String]().empty,
+      values: Map[String, LogValue],
+      fields: LogField*,
   ): IO[Unit] = {
-    val level = Warn
     for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage)
-      _ <-
-        if (passThrough) {
-          for {
-            event <- toEvent(
-              message = msg,
-              level = level,
-              values = values,
-              storage0 = Some(storage),
-            )
-            _ <- evaluateLog(event._1, event._2, sink.log)
-          } yield ()
-        } else {
-          IO.unit
-        }
+      _ <- contextOps.updateValues(values)
+      _ <- info(msg, fields: _*)
     } yield ()
+  }
+
+  override def warn(msg: String, fields: LogField*): IO[Unit] = {
+    log(level = Warn, message = msg, fields = fields)
   }
 
   /** Values are added to the context, not based on this log event only
     */
-  override def warnUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def warnUpdateContext(
+      msg: String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
-      _ <- warn(msg)
+      _ <- warn(msg, fields: _*)
     } yield ()
   }
 
-  override def error(msg: String): IO[Unit] = {
-    for {
-      event <- toEvent(message = msg, level = Error)
-      _ <- evaluateLog(event._1, event._2, sink.log)
-    } yield ()
-  }
-
-  override def error(msg: String, values: Map[String, String]): IO[Unit] = {
-    for {
-      event <- toEvent(message = msg, level = Error, values = values)
-      _ <- evaluateLog(event._1, event._2, sink.log)
-    } yield ()
+  override def error(msg: String, fields: LogField*): IO[Unit] = {
+    log(level = Error, message = msg, fields = fields)
   }
 
   /** Values are added to the context, not based on this log event only
     */
-  override def errorUpdateContext(msg: String, values: Map[String, String]): IO[Unit] = {
+  override def errorUpdateContext(
+      msg: String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
-      _ <- error(msg)
+      _ <- error(msg, fields: _*)
     } yield ()
   }
 
-  override def error(msg: String, e: Throwable): IO[Unit] = {
-    for {
-      event <- toEvent(message = msg, level = Error, e = Some(e))
-      _ <- evaluateLog(event._1, event._2, sink.log)
-    } yield ()
-  }
-
-  override def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] = {
-    for {
-      event <- toEvent(message = msg, level = Error, e = Some(e), values = values)
-      _ <- evaluateLog(event._1, event._2, sink.log)
-    } yield ()
+  override def error(msg: String, e: Throwable, fields: LogField*): IO[Unit] = {
+    log(level = Error, message = msg, fields = fields, throwable = Some(e))
   }
 
   /** Values are added to the context, not based on this log event only
@@ -426,16 +311,17 @@ final class BridgeLoggerImpl private[logger] (
   override def errorUpdateContext(
       msg: String,
       e: Throwable,
-      values: Map[String, String],
+      values: Map[String, LogValue],
+      fields: LogField*,
   ): IO[Unit] = {
     for {
       _ <- contextOps.updateValues(values)
-      _ <- error(msg, e)
+      _ <- error(msg, e, fields: _*)
     } yield ()
   }
 
   override def withRequest[A](
-      values: Map[String, String] = Map(),
+      values: Map[String, LogValue] = Map(),
       sampleRequest: Option[Boolean] = None,
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
@@ -486,8 +372,8 @@ final class BridgeLoggerImpl private[logger] (
     } yield results
   }
 
-  override def updateValues(key: String, value: String): IO[Unit] =
-    contextOps.updateValues(key, value)
+  override def updateValues(key: String, value: LogValue): IO[Unit] =
+    contextOps.updateValue(key, value)
 
   override def setCorrelationId(id: String): IO[Unit] = contextOps.setCorrelation(id)
 

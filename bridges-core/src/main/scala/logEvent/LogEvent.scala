@@ -25,7 +25,7 @@ case class LogEvent(
     timestamp: Long,
     context: IOStorage,
     attributes: Map[String, LogValue],
-    logContext: Map[String, String],
+    logContext: Map[String, LogValue],
     throwable: Option[Throwable] = None,
 ) {
   def toStoredLog: LogEvent = {
@@ -49,5 +49,5 @@ object LogEvent {
       key: String,
       value: A,
   ): (String, LogValue) =
-    key -> implicitly[ToLogValue[A]].toLogValue(value)
+    key -> ToLogValue[A].toLogValue(value)
 }
