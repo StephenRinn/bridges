@@ -40,10 +40,34 @@ object Bridge {
     }
   }
 
+  private def isNull: Boolean = {
+    logger == null
+  }
+
   private def bridge: BridgeLogger = {
-    if (logger == null) {
+    if (isNull) {
       throw new IllegalStateException("Bridge has not yet been initialized")
     } else logger
+  }
+
+  def replace(instance: BridgeLogger): IO[Unit] = {
+    IO {
+      if (isNull) {
+        throw new IllegalStateException("Bridge has not yet been initialized")
+      } else {
+        logger = instance
+      }
+    }
+  }
+
+  def shutdown: IO[Unit] = {
+    IO{
+      if (isNull) {
+        throw new IllegalStateException("Bridge has not been initialized")
+      } else {
+        logger = null
+      }
+    }
   }
 
   def trace(msg: String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
