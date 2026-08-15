@@ -23,6 +23,7 @@ import logEvent.LogField
 import logEvent.LogLevel
 import logEvent.LogValue
 import logEvent.ToLogValue
+import logger.BridgeLoggerConfig
 
 final class ContextOperations(
     private val local: IOLocal[IOStorage],
@@ -88,5 +89,16 @@ final class ContextOperations(
 
   def get: IO[IOStorage] = {
     local.get
+  }
+
+  def updateConfig(config: BridgeLoggerConfig): IO[Unit] = {
+    local.update(_.copy(config = Some(config)))
+  }
+
+  def tempConfigUpdate(config: BridgeLoggerConfig): IO[Option[BridgeLoggerConfig]] = {
+    for {
+      storage <- local.get
+      _ <- local.update(_.copy(config = Some(config)))
+    } yield storage.config
   }
 }

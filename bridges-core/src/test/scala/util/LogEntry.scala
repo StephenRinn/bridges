@@ -52,6 +52,12 @@ class TestLogSink(ref: Ref[IO, Vector[LogEntry]]) extends LogSink {
     } yield ()
 
   def messages: IO[Vector[LogEntry]] = ref.get
+
+  def reset: IO[Unit] = {
+    for {
+      _ <- ref.set(Vector[LogEntry]())
+    } yield ()
+  }
 }
 
 object TestLogSink {
