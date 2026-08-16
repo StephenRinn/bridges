@@ -19,7 +19,11 @@ package contextStorage
 import cats.effect.IO
 import cats.effect.IOLocal
 import logEvent.LogEvent
+import logEvent.LogField
 import logEvent.LogLevel
+import logEvent.LogValue
+import logEvent.ToLogValue
+import logger.BridgeLoggerConfig
 
 final class ContextOperations(
     private val local: IOLocal[IOStorage],
@@ -33,18 +37,26 @@ final class ContextOperations(
 
   def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId)) }
 
-  def updateValues(key: String, value: String): IO[Unit] = {
+  def updateFields(fields: LogField*): IO[Unit] = {
+    updateValues(fields.iterator.map(field => field.key -> field.value()).toMap)
+  }
+
+  def updateValue(key: String, value: LogValue): IO[Unit] = {
     local.modify { storage =>
       val updated = storage.values + (key -> value)
       (storage.copy(values = updated), ())
     }
   }
 
-  def updateValues(updatedValues: Map[String, String]): IO[Unit] = {
+  def updateValues(updatedValues: Map[String, LogValue]): IO[Unit] = {
     local.modify { storage =>
       val updated = storage.values ++ updatedValues
       (storage.copy(values = updated), ())
     }
+  }
+
+  def updateValue[A: ToLogValue](key: String, value: A): IO[Unit] = {
+    updateValue(key, ToLogValue[A].toLogValue(value))
   }
 
   def updateRebuildLog(event: LogEvent, level: LogLevel): IO[Unit] = {
@@ -77,5 +89,16 @@ final class ContextOperations(
 
   def get: IO[IOStorage] = {
     local.get
+  }
+
+  def updateConfig(config: BridgeLoggerConfig): IO[Unit] = {
+    local.update(_.copy(config = Some(config)))
+  }
+
+  def tempConfigUpdate(config: BridgeLoggerConfig): IO[Option[BridgeLoggerConfig]] = {
+    for {
+      storage <- local.get
+      _ <- local.update(_.copy(config = Some(config)))
+    } yield storage.config
   }
 }

@@ -14,36 +14,20 @@
  * limitations under the License.
  */
 
-package contextStorage
+package logEvent
 
-import logEvent._
-import logger.BridgeLoggerConfig
+import scala.language.implicitConversions
 
-final case class IOStorage(
-    requestId: String,
-    correlationId: String,
-    values: Map[String, LogValue],
-    startTime: Option[Long],
-    endTime: Option[Long],
-    sampled: Option[Boolean],
-    rebuildLog: List[RebuildLog],
-    config: Option[BridgeLoggerConfig],
+final case class LogField(
+    key: String,
+    value: () => LogValue,
 )
 
-final case class RebuildLog(
-    log: LogEvent,
-)
-
-object IOStorage {
-  val empty: IOStorage =
-    IOStorage(
-      "",
-      "",
-      Map[String, LogValue](),
-      None,
-      None,
-      sampled = None,
-      List[RebuildLog]().empty,
-      None
+object LogField {
+  implicit def fromTuple[A: ToLogValue](value: (String, A)): LogField = {
+    LogField(
+      key = value._1,
+      value = () => ToLogValue[A].toLogValue(value._2),
     )
+  }
 }

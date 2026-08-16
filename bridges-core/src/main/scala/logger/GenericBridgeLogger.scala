@@ -20,28 +20,24 @@ import cats.effect.IO
 import cats.effect.LiftIO
 import cats.~>
 import java.util.UUID
+import logEvent.LogField
+import logEvent.LogValue
 
 trait GenericBridgeLogger[F[_]] {
-  def trace(msg: String): F[Unit]
-  def trace(msg: String, values: Map[String, String]): F[Unit]
-  def debug(msg: String): F[Unit]
-  def debug(msg: String, values: Map[String, String]): F[Unit]
-  def info(msg: String): F[Unit]
-  def info(msg: String, values: Map[String, String]): F[Unit]
-  def warn(msg: String): F[Unit]
-  def warn(msg: String, values: Map[String, String]): F[Unit]
-  def error(msg: String): F[Unit]
-  def error(msg: String, values: Map[String, String]): F[Unit]
-  def error(msg: String, e: Throwable): F[Unit]
-  def error(msg: String, e: Throwable, values: Map[String, String]): F[Unit]
+  def trace(msg: => String, fields: LogField*): F[Unit]
+  def debug(msg: => String, fields: LogField*): F[Unit]
+  def info(msg: => String, fields: LogField*): F[Unit]
+  def warn(msg: => String, fields: LogField*): F[Unit]
+  def error(msg: => String, fields: LogField*): F[Unit]
+  def error(msg: => String, e: Throwable, fields: LogField*): F[Unit]
   def withRequest[A](
-      values: Map[String, String] = Map[String, String](),
+      values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
       transform: F ~> IO,
   )(fa: F[A]): F[A]
-  def updateValues(key: String, value: String): F[Unit]
+  def updateValues(key: String, value: LogValue): F[Unit]
   def setCorrelationId(id: String): F[Unit]
   def setRequestId(id: String): F[Unit]
 }
@@ -51,56 +47,32 @@ object GenericBridgeLogger {
   def fromBridge[F[_]: LiftIO](bridge: BridgeLogger): GenericBridgeLogger[F] = {
     new GenericBridgeLogger[F] {
 
-      override def trace(msg: String): F[Unit] = {
-        LiftIO[F].liftIO(bridge.trace(msg))
+      override def trace(msg: => String, fields: LogField*): F[Unit] = {
+        LiftIO[F].liftIO(bridge.trace(msg, fields: _*))
       }
 
-      override def trace(msg: String, values: Map[String, String]): F[Unit] = {
-        LiftIO[F].liftIO(bridge.trace(msg, values))
+      override def debug(msg: => String, fields: LogField*): F[Unit] = {
+        LiftIO[F].liftIO(bridge.debug(msg, fields: _*))
       }
 
-      override def debug(msg: String): F[Unit] = {
-        LiftIO[F].liftIO(bridge.debug(msg))
+      override def info(msg: => String, fields: LogField*): F[Unit] = {
+        LiftIO[F].liftIO(bridge.info(msg, fields: _*))
       }
 
-      override def debug(msg: String, values: Map[String, String]): F[Unit] = {
-        LiftIO[F].liftIO(bridge.debug(msg, values))
+      override def warn(msg: => String, fields: LogField*): F[Unit] = {
+        LiftIO[F].liftIO(bridge.warn(msg, fields: _*))
       }
 
-      override def info(msg: String): F[Unit] = {
-        LiftIO[F].liftIO(bridge.info(msg))
+      override def error(msg: => String, fields: LogField*): F[Unit] = {
+        LiftIO[F].liftIO(bridge.error(msg, fields: _*))
       }
 
-      override def info(msg: String, values: Map[String, String]): F[Unit] = {
-        LiftIO[F].liftIO(bridge.info(msg, values))
-      }
-
-      override def warn(msg: String): F[Unit] = {
-        LiftIO[F].liftIO(bridge.warn(msg))
-      }
-
-      override def warn(msg: String, values: Map[String, String]): F[Unit] = {
-        LiftIO[F].liftIO(bridge.warn(msg, values))
-      }
-
-      override def error(msg: String): F[Unit] = {
-        LiftIO[F].liftIO(bridge.error(msg))
-      }
-
-      override def error(msg: String, values: Map[String, String]): F[Unit] = {
-        LiftIO[F].liftIO(bridge.error(msg, values))
-      }
-
-      override def error(msg: String, e: Throwable): F[Unit] = {
-        LiftIO[F].liftIO(bridge.error(msg, e))
-      }
-
-      override def error(msg: String, e: Throwable, values: Map[String, String]): F[Unit] = {
-        LiftIO[F].liftIO(bridge.error(msg, e, values))
+      override def error(msg: => String, e: Throwable, fields: LogField*): F[Unit] = {
+        LiftIO[F].liftIO(bridge.error(msg, e, fields: _*))
       }
 
       override def withRequest[A](
-          values: Map[String, String] = Map[String, String](),
+          values: Map[String, LogValue] = Map[String, LogValue](),
           sampleRequest: Option[Boolean] = None,
           correlationId: String = UUID.randomUUID().toString,
           requestId: String = UUID.randomUUID().toString,
@@ -111,13 +83,13 @@ object GenericBridgeLogger {
           bridge.withRequest[A](
             values = values,
             sampleRequest = sampleRequest,
-            correlationId = correlationId,
-            requestId = requestId,
+            correlationId = Some(correlationId),
+            requestId = Some(requestId),
           )(transform(fa)),
         )
       }
 
-      override def updateValues(key: String, value: String): F[Unit] = {
+      override def updateValues(key: String, value: LogValue): F[Unit] = {
         LiftIO[F].liftIO(bridge.updateValues(key, value))
       }
 

@@ -18,6 +18,8 @@ package runtime
 
 import cats.effect.IO
 import java.util.UUID
+import logEvent.LogField
+import logEvent.LogValue
 import logger.BridgeLogger
 
 /** Bridge is loosely a singleton logging provider to allow wiring logging into objects without
@@ -38,45 +40,57 @@ object Bridge {
     }
   }
 
+  private def isNull: Boolean = {
+    logger == null
+  }
+
   private def bridge: BridgeLogger = {
-    if (logger == null) {
+    if (isNull) {
       throw new IllegalStateException("Bridge has not yet been initialized")
     } else logger
   }
 
-  def trace(msg: String): IO[Unit] = bridge.trace(msg)
+  def replace(instance: BridgeLogger): IO[Unit] = {
+    IO {
+      if (isNull) {
+        throw new IllegalStateException("Bridge has not yet been initialized")
+      } else {
+        logger = instance
+      }
+    }
+  }
 
-  def trace(msg: String, values: Map[String, String]): IO[Unit] = bridge.trace(msg, values)
+  def shutdown: IO[Unit] = {
+    IO{
+      if (isNull) {
+        throw new IllegalStateException("Bridge has not been initialized")
+      } else {
+        logger = null
+      }
+    }
+  }
 
-  def debug(msg: String): IO[Unit] = bridge.debug(msg)
+  def trace(msg: => String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
 
-  def debug(msg: String, values: Map[String, String]): IO[Unit] = bridge.debug(msg, values)
+  def debug(msg: => String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
 
-  def info(msg: String): IO[Unit] = bridge.info(msg)
+  def info(msg: => String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
 
-  def info(msg: String, values: Map[String, String]): IO[Unit] = bridge.info(msg, values)
+  def warn(msg: => String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
 
-  def warn(msg: String): IO[Unit] = bridge.warn(msg)
+  def error(msg: => String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
 
-  def warn(msg: String, values: Map[String, String]): IO[Unit] = bridge.warn(msg, values)
-
-  def error(msg: String): IO[Unit] = bridge.error(msg)
-
-  def error(msg: String, values: Map[String, String]): IO[Unit] = bridge.error(msg, values)
-
-  def error(msg: String, e: Throwable): IO[Unit] = bridge.error(msg, e)
-
-  def error(msg: String, e: Throwable, values: Map[String, String]): IO[Unit] =
-    bridge.error(msg, e, values)
+  def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] =
+    bridge.error(msg, e, fields: _*)
 
   def withRequest[A](
-      values: Map[String, String] = Map[String, String](),
+      values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
-      correlationId: String = UUID.randomUUID().toString,
-      requestId: String = UUID.randomUUID().toString,
+      correlationId: Option[String] = None,
+      requestId: Option[String] = None,
   )(fa: IO[A]): IO[A] = bridge.withRequest[A](values, sampleRequest, correlationId, requestId)(fa)
 
-  def updateValues(key: String, value: String): IO[Unit] = bridge.updateValues(key, value)
+  def updateValues(key: String, value: LogValue): IO[Unit] = bridge.updateValues(key, value)
 
   def setCorrelationId(id: String): IO[Unit] = bridge.setCorrelationId(id)
 

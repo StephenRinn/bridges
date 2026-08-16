@@ -23,7 +23,7 @@ object LogValue {
   case object Null extends LogValue
 
   final case class StringValue(value: String) extends LogValue {
-    override def toString: String = value.toString
+    override def toString: String = value
   }
   final case class BooleanValue(value: Boolean) extends LogValue {
     override def toString: String = value.toString
@@ -37,11 +37,14 @@ object LogValue {
   final case class DoubleValue(value: Double) extends LogValue {
     override def toString: String = value.toString
   }
-
-  final case class ListValue(values: List[LogValue]) extends LogValue {
-    override def toString: String = values.toString
+  final case class ListValue(values: Vector[LogValue]) extends LogValue {
+    override def toString: String = values.mkString("[", ", ", "]")
   }
   final case class MapValue(values: Map[String, LogValue]) extends LogValue {
     override def toString: String = values.toString
   }
+  def obj(fields: (String, LogValue)*): LogValue = {
+    MapValue(fields.toMap)
+  }
+  def array(values: LogValue*): LogValue = ListValue(values.toVector)
 }
