@@ -17,6 +17,7 @@
 package contextStorage
 
 import logEvent._
+import logger.BridgeLoggerConfig
 
 final case class IOStorage(
     requestId: String,
@@ -26,6 +27,7 @@ final case class IOStorage(
     endTime: Option[Long],
     sampled: Option[Boolean],
     rebuildLog: List[RebuildLog],
+    config: Option[BridgeLoggerConfig],
 )
 
 final case class RebuildLog(
@@ -42,5 +44,6 @@ object IOStorage {
       None,
       sampled = None,
       List[RebuildLog]().empty,
+      None
     )
 }

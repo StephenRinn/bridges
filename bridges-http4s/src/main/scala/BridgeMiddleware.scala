@@ -16,8 +16,11 @@
 
 import cats.effect.IO
 import java.util.UUID
+import logEvent.LogLevel
+import logEvent.LogLevel.Info
+import logEvent.LogLevel.Warn
 import logEvent.LogValue
-import logger.BridgeLogger
+import logger.{BridgeLogger, BridgeLoggerConfig}
 import org.http4s.Header
 import org.http4s.HttpApp
 import org.typelevel.ci.CIStringSyntax
@@ -26,6 +29,7 @@ object BridgeMiddleware {
   def apply(
       logger: BridgeLogger,
       defaultValues: Map[String, LogValue] = Map[String, LogValue]().empty,
+      customConfig: Option[BridgeLoggerConfig] = None
   ): HttpApp[IO] => HttpApp[IO] =
     app =>
       HttpApp { request =>
@@ -41,8 +45,8 @@ object BridgeMiddleware {
         logger
           .withRequest(
             values = defaultValues,
-            correlationId = correlationId,
-            requestId = requestId,
+            correlationId = Some(correlationId),
+            requestId = Some(requestId),
           )(app(request))
           .map(_.putHeaders(correlationHeader))
       }

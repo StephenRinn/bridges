@@ -70,24 +70,24 @@ object Bridge {
     }
   }
 
-  def trace(msg: String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
+  def trace(msg: => String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
 
-  def debug(msg: String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
+  def debug(msg: => String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
 
-  def info(msg: String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
+  def info(msg: => String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
 
-  def warn(msg: String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
+  def warn(msg: => String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
 
-  def error(msg: String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
+  def error(msg: => String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
 
-  def error(msg: String, e: Throwable, fields: LogField*): IO[Unit] =
+  def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] =
     bridge.error(msg, e, fields: _*)
 
   def withRequest[A](
       values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
-      correlationId: String = UUID.randomUUID().toString,
-      requestId: String = UUID.randomUUID().toString,
+      correlationId: Option[String] = None,
+      requestId: Option[String] = None,
   )(fa: IO[A]): IO[A] = bridge.withRequest[A](values, sampleRequest, correlationId, requestId)(fa)
 
   def updateValues(key: String, value: LogValue): IO[Unit] = bridge.updateValues(key, value)
