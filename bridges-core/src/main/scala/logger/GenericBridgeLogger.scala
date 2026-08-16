@@ -24,12 +24,12 @@ import logEvent.LogField
 import logEvent.LogValue
 
 trait GenericBridgeLogger[F[_]] {
-  def trace(msg: String, fields: LogField*): F[Unit]
-  def debug(msg: String, fields: LogField*): F[Unit]
-  def info(msg: String, fields: LogField*): F[Unit]
-  def warn(msg: String, fields: LogField*): F[Unit]
-  def error(msg: String, fields: LogField*): F[Unit]
-  def error(msg: String, e: Throwable, fields: LogField*): F[Unit]
+  def trace(msg: => String, fields: LogField*): F[Unit]
+  def debug(msg: => String, fields: LogField*): F[Unit]
+  def info(msg: => String, fields: LogField*): F[Unit]
+  def warn(msg: => String, fields: LogField*): F[Unit]
+  def error(msg: => String, fields: LogField*): F[Unit]
+  def error(msg: => String, e: Throwable, fields: LogField*): F[Unit]
   def withRequest[A](
       values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
@@ -47,27 +47,27 @@ object GenericBridgeLogger {
   def fromBridge[F[_]: LiftIO](bridge: BridgeLogger): GenericBridgeLogger[F] = {
     new GenericBridgeLogger[F] {
 
-      override def trace(msg: String, fields: LogField*): F[Unit] = {
+      override def trace(msg: => String, fields: LogField*): F[Unit] = {
         LiftIO[F].liftIO(bridge.trace(msg, fields: _*))
       }
 
-      override def debug(msg: String, fields: LogField*): F[Unit] = {
+      override def debug(msg: => String, fields: LogField*): F[Unit] = {
         LiftIO[F].liftIO(bridge.debug(msg, fields: _*))
       }
 
-      override def info(msg: String, fields: LogField*): F[Unit] = {
+      override def info(msg: => String, fields: LogField*): F[Unit] = {
         LiftIO[F].liftIO(bridge.info(msg, fields: _*))
       }
 
-      override def warn(msg: String, fields: LogField*): F[Unit] = {
+      override def warn(msg: => String, fields: LogField*): F[Unit] = {
         LiftIO[F].liftIO(bridge.warn(msg, fields: _*))
       }
 
-      override def error(msg: String, fields: LogField*): F[Unit] = {
+      override def error(msg: => String, fields: LogField*): F[Unit] = {
         LiftIO[F].liftIO(bridge.error(msg, fields: _*))
       }
 
-      override def error(msg: String, e: Throwable, fields: LogField*): F[Unit] = {
+      override def error(msg: => String, e: Throwable, fields: LogField*): F[Unit] = {
         LiftIO[F].liftIO(bridge.error(msg, e, fields: _*))
       }
 

@@ -23,7 +23,7 @@ import logger.{BridgeLogger, BridgeLoggerConfig}
 object BridgeLoggerImplicits {
   implicit class ops(logger: BridgeLogger) {
 
-    def traceImpl(msg: String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
+    def traceImpl(msg: => String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
       for {
           _ <- logger.log(
             level = Trace,
@@ -35,7 +35,7 @@ object BridgeLoggerImplicits {
         } yield ()
     }
 
-    def debugImpl(msg: String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
+    def debugImpl(msg: => String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
       for {
         _ <- logger.log(
           level = Debug,
@@ -47,7 +47,7 @@ object BridgeLoggerImplicits {
       } yield ()
     }
 
-    def infoImpl(msg: String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
+    def infoImpl(msg: => String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
       for {
         _ <- logger.log(
           level = Info,
@@ -59,7 +59,7 @@ object BridgeLoggerImplicits {
       } yield ()
     }
 
-    def warnImpl(msg: String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
+    def warnImpl(msg: => String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
       for {
         _ <- logger.log(
           level = Warn,
@@ -71,7 +71,7 @@ object BridgeLoggerImplicits {
       } yield ()
     }
 
-    def errorImpl(msg: String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
+    def errorImpl(msg: => String, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
       for {
         _ <- logger.log(
           level = Error,
@@ -83,7 +83,7 @@ object BridgeLoggerImplicits {
       } yield ()
     }
 
-    def errorImpl(msg: String, e: Throwable, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
+    def errorImpl(msg: => String, e: Throwable, fields: LogField*)(implicit config: BridgeLoggerConfig): IO[Unit] = {
       for {
         _ <- logger.log(
           level = Trace,

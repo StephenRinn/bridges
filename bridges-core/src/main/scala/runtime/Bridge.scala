@@ -70,17 +70,17 @@ object Bridge {
     }
   }
 
-  def trace(msg: String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
+  def trace(msg: => String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
 
-  def debug(msg: String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
+  def debug(msg: => String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
 
-  def info(msg: String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
+  def info(msg: => String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
 
-  def warn(msg: String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
+  def warn(msg: => String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
 
-  def error(msg: String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
+  def error(msg: => String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
 
-  def error(msg: String, e: Throwable, fields: LogField*): IO[Unit] =
+  def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] =
     bridge.error(msg, e, fields: _*)
 
   def withRequest[A](
