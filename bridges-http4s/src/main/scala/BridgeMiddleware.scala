@@ -45,8 +45,8 @@ object BridgeMiddleware {
         logger
           .withRequest(
             values = defaultValues,
-            correlationId = correlationId,
-            requestId = requestId,
+            correlationId = Some(correlationId),
+            requestId = Some(requestId),
           )(app(request))
           .map(_.putHeaders(correlationHeader))
       }

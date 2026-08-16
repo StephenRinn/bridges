@@ -86,8 +86,8 @@ object Bridge {
   def withRequest[A](
       values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
-      correlationId: String = UUID.randomUUID().toString,
-      requestId: String = UUID.randomUUID().toString,
+      correlationId: Option[String] = None,
+      requestId: Option[String] = None,
   )(fa: IO[A]): IO[A] = bridge.withRequest[A](values, sampleRequest, correlationId, requestId)(fa)
 
   def updateValues(key: String, value: LogValue): IO[Unit] = bridge.updateValues(key, value)

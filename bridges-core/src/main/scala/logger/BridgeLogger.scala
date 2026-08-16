@@ -54,8 +54,9 @@ trait BridgeLogger {
   def withRequest[A](
       values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
-      correlationId: String = UUID.randomUUID().toString,
-      requestId: String = UUID.randomUUID().toString,
+      correlationId: Option[String] = None,
+      requestId: Option[String] = None,
+      composable: Boolean = true,
   )(fa: IO[A])(implicit config: Option[BridgeLoggerConfig] = None): IO[A]
   def updateValues(key: String, value: LogValue): IO[Unit]
   def setCorrelationId(id: String): IO[Unit]
@@ -368,19 +369,46 @@ final class BridgeLoggerImpl private[logger] (
   override def withRequest[A](
       values: Map[String, LogValue] = Map(),
       sampleRequest: Option[Boolean] = None,
-      correlationId: String = UUID.randomUUID().toString,
-      requestId: String = UUID.randomUUID().toString,
+      correlationId: Option[String] = None,
+      requestId: Option[String] = None,
+      composable: Boolean = true,
   )(fa: IO[A])(implicit config: Option[BridgeLoggerConfig] = None): IO[A] = {
-    val storage = IOStorage.empty
-    val updated =
-      storage.copy(
-        requestId = requestId,
-        correlationId = correlationId,
-        values = values,
-        sampled = sampleRequest,
-        config = config,
-      )
-    withRequestInternal(updated)(fa)
+    for {
+      storage <- if(composable){
+        contextOps.get
+      } else {
+        IO(IOStorage.empty)
+      }
+      updatedStorage = {
+        val rid = (storage.requestId, requestId) match {
+          case (_, Some(value)) => value
+          case ("", None) => UUID.randomUUID().toString
+          case (corrId, _) => corrId
+          case _ => UUID.randomUUID().toString
+        }
+
+        val cid = (storage.correlationId, correlationId) match {
+          case (_, Some(value)) => value
+          case ("", None) => UUID.randomUUID().toString
+          case (corrId, _) => corrId
+          case _ => UUID.randomUUID().toString
+        }
+        val sampled = if(sampleRequest.isDefined){
+          sampleRequest
+        } else {
+          storage.sampled
+        }
+        val updatedValues = storage.values ++ values
+        storage.copy(
+          requestId = rid,
+          correlationId = cid,
+          values = updatedValues,
+          sampled = sampled,
+          config = config,
+        )
+      }
+      result <- withRequestInternal(updatedStorage)(fa)
+    } yield result
   }
 
   private def withRequestInternal[A](newStorage: IOStorage)(fa: IO[A]): IO[A] = {

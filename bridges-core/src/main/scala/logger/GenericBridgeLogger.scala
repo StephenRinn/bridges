@@ -83,8 +83,8 @@ object GenericBridgeLogger {
           bridge.withRequest[A](
             values = values,
             sampleRequest = sampleRequest,
-            correlationId = correlationId,
-            requestId = requestId,
+            correlationId = Some(correlationId),
+            requestId = Some(requestId),
           )(transform(fa)),
         )
       }
