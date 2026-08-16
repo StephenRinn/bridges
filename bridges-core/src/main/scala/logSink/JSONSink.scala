@@ -59,11 +59,16 @@ class JSONSink extends LogSink {
 object JsonHelpers {
   implicit val throwableEncoder: Encoder[Throwable] = {
     Encoder.instance { t =>
+      val cause = if(t.getCause == null){
+        null
+      } else {
+        t.getCause.toString.asJson
+      }
       Json.obj(
         "message" -> t.getMessage.asJson,
         "type" -> t.getClass.getName.asJson,
         "stacktrace" -> t.getStackTrace.map(s => s.toString.asJson).asJson,
-        "cause" -> t.getCause.toString.asJson,
+        "cause" -> cause,
         "suppressedexceptions" -> t.getSuppressed.map(s => s.toString.asJson).asJson,
       )
     }
