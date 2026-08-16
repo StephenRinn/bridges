@@ -33,6 +33,7 @@ import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
 
 trait BridgeLogger {
+  val bridgeConfig: BridgeLoggerConfig
   def trace(msg: String, fields: LogField*): IO[Unit]
   def traceUpdateContext(msg: String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
   def debug(msg: String, fields: LogField*): IO[Unit]
@@ -66,6 +67,15 @@ trait BridgeLogger {
       throwable: Option[Throwable] = None,
       config: Option[BridgeLoggerConfig] = None,
   ): IO[Unit]
+  def withConfig(
+      minLevel: Option[LogLevel] = None,
+      replayAllLogLevel: Option[LogLevel] = None,
+      duplicateEntriesOnBufferDump: Option[Boolean] = None,
+      sampleRate: Option[Float] = None,
+      sampleBelowMinLevel: Option[Boolean] = None,
+      bufferBelowMinLevel: Option[Boolean] = None,
+      bufferSize: Option[Int] = None,
+  ): IO[Unit]
 }
 
 final class BridgeLoggerImpl private[logger] (
@@ -74,6 +84,7 @@ final class BridgeLoggerImpl private[logger] (
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
+  override val bridgeConfig: BridgeLoggerConfig = bridgeLoggerConfig
   private val contextOps: ContextOperations =
     new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
 
@@ -141,11 +152,7 @@ final class BridgeLoggerImpl private[logger] (
     }
     val sampleCheck = ioStorage.sampled.contains(true) || ioStorage.sampled.isEmpty
     level match {
-      case l if l > config.minLevel => true
-      case l if l == config.minLevel =>
-        if (sampleCheck) {
-          true
-        } else false
+      case l if l >= config.minLevel => true
       case l if l < config.minLevel && config.bufferBelowMinLevel => true
       case l if l < config.minLevel && config.sampleBelowMinLevel =>
         if (sampleCheck) {
@@ -201,9 +208,14 @@ final class BridgeLoggerImpl private[logger] (
     param.level >= config.replayAllLogLevel
   }
 
-  private def bufferEligible(param: LogEvent, config: BridgeLoggerConfig): Boolean = {
-    (param.level < config.minLevel && config.bufferBelowMinLevel
-    || param.level >= config.minLevel && config.duplicateEntriesOnBufferDump)
+  private def bufferEligible(
+      param: LogEvent,
+      config: BridgeLoggerConfig,
+      sampled: Boolean,
+  ): Boolean = {
+    ((param.level < config.minLevel && config.bufferBelowMinLevel)
+    || (param.level >= config.minLevel && config.duplicateEntriesOnBufferDump)
+    || (param.level == config.minLevel && !sampled))
   }
 
   private def evaluateLog(
@@ -221,7 +233,7 @@ final class BridgeLoggerImpl private[logger] (
       sampled <- sampleEligible(storage, config)
       bufferDump = bufferDumpEligible(param, config)
       emit = emitEligible(param, sampled, config)
-      buffer = bufferEligible(param, config)
+      buffer = bufferEligible(param, config, sampled)
       _ <- (bufferDump, emit, buffer) match {
         case (true, _, _) => rebuildAndPrint(param, storage, fa)
         case (_, true, _) =>
@@ -413,35 +425,43 @@ final class BridgeLoggerImpl private[logger] (
 
   override def setRequestId(id: String): IO[Unit] = contextOps.setRequest(id)
 
-  def withConfig(
-      minLevel: LogLevel = bridgeLoggerConfig.minLevel,
-      replayAllLogLevel: LogLevel = bridgeLoggerConfig.replayAllLogLevel,
-      duplicateEntriesOnBufferDump: Boolean = bridgeLoggerConfig.duplicateEntriesOnBufferDump,
-      sampleRate: Float = bridgeLoggerConfig.sampleRate,
-      sampleBelowMinLevel: Boolean = bridgeLoggerConfig.sampleBelowMinLevel,
-      bufferBelowMinLevel: Boolean = bridgeLoggerConfig.bufferBelowMinLevel,
-      bufferSize: Int = bridgeLoggerConfig.bufferSize,
-  ): IO[BridgeLogger] = {
-    val config = BridgeLoggerConfig(
-      minLevel = minLevel,
-      replayAllLogLevel = replayAllLogLevel,
-      duplicateEntriesOnBufferDump = duplicateEntriesOnBufferDump,
-      sampleRate = sampleRate,
-      sampleBelowMinLevel = sampleBelowMinLevel,
-      bufferBelowMinLevel = bufferBelowMinLevel,
-      bufferSize = bufferSize,
-    )
+  override def withConfig(
+      minLevel: Option[LogLevel] = None,
+      replayAllLogLevel: Option[LogLevel] = None,
+      duplicateEntriesOnBufferDump: Option[Boolean] = None,
+      sampleRate: Option[Float] = None,
+      sampleBelowMinLevel: Option[Boolean] = None,
+      bufferBelowMinLevel: Option[Boolean] = None,
+      bufferSize: Option[Int] = None,
+  ): IO[Unit] = {
     for {
+      storage <- contextOps.get
+      config = storage.config match {
+        case Some(value) =>
+          value.copy(
+            minLevel = minLevel.getOrElse(value.minLevel),
+            replayAllLogLevel = replayAllLogLevel.getOrElse(value.replayAllLogLevel),
+            duplicateEntriesOnBufferDump =
+              duplicateEntriesOnBufferDump.getOrElse(value.duplicateEntriesOnBufferDump),
+            sampleRate = sampleRate.getOrElse(value.sampleRate),
+            sampleBelowMinLevel = sampleBelowMinLevel.getOrElse(value.sampleBelowMinLevel),
+            bufferBelowMinLevel = bufferBelowMinLevel.getOrElse(value.bufferBelowMinLevel),
+            bufferSize = bufferSize.getOrElse(value.bufferSize),
+          )
+        case None =>
+          bridgeLoggerConfig.copy(
+            minLevel = minLevel.getOrElse(bridgeLoggerConfig.minLevel),
+            replayAllLogLevel = replayAllLogLevel.getOrElse(bridgeLoggerConfig.replayAllLogLevel),
+            duplicateEntriesOnBufferDump =
+              duplicateEntriesOnBufferDump.getOrElse(bridgeLoggerConfig.duplicateEntriesOnBufferDump),
+            sampleRate = sampleRate.getOrElse(bridgeLoggerConfig.sampleRate),
+            sampleBelowMinLevel = sampleBelowMinLevel.getOrElse(bridgeLoggerConfig.sampleBelowMinLevel),
+            bufferBelowMinLevel = bufferBelowMinLevel.getOrElse(bridgeLoggerConfig.bufferBelowMinLevel),
+            bufferSize = bufferSize.getOrElse(bridgeLoggerConfig.bufferSize),
+          )
+      }
       _ <- contextOps.updateConfig(config)
-    } yield this
-  }
-
-  def withConfig(
-      config: BridgeLoggerConfig,
-  ): IO[BridgeLogger] = {
-    for {
-      _ <- contextOps.updateConfig(config)
-    } yield this
+    } yield ()
   }
 
   private def getStorage: IO[IOStorage] = {
