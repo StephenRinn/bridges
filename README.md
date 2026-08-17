@@ -348,15 +348,14 @@ on the concrete implementation.
 
 - minLevel - minimum log level and the level where sampling occurs
 - sampleRate - sampling rate
-- duplicateEntriesOnBufferDump - allows replaying all logs up to the buffer dump. 
-  - This can be useful for ordering in logs at the expense of duplicated entries for previously emitted logs.
+- duplicateEntriesOnBufferDump - allows replaying all logs up to the buffer dump.
+    - This can be useful for ordering in logs at the expense of duplicated entries for previously emitted logs.
 - bufferBelowMinLevel - whether logs at or below the minimum level are buffered
 - sampleBelowMinLevel - whether sampled requests continue logging below the minimum level
 - replayAllLogLevel - log level that triggers buffered replay
 - bufferSize - buffer size
 
 The config can be set at logger creation, in the request scope, and at the individual log level
-
 
 Individual Log Level (Highest priority)
 Request level/thread level

@@ -1,4 +1,4 @@
-ThisBuild / version := "1.0.1"
+ThisBuild / version := "1.0.2"
 ThisBuild / description :=
   "Context-aware logging for Cats Effect"
 ThisBuild / organization := "io.github.stephenrinn"

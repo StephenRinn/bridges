@@ -1,14 +1,15 @@
 import cats.effect.IO
 import contextStorage.IOStorage
 import logEvent.LogLevel._
-import logger.{BridgeLogger, BridgeLoggerConfig}
+import logger.BridgeLogger
+import logger.BridgeLoggerConfig
 import munit.CatsEffectSuite
 import org.scalatest.PrivateMethodTester
 import util.TestLogSink
 
 class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
 
-  private def setup(sampleRate: Float = 1.0F): IO[(TestLogSink, BridgeLogger)] = {
+  private def setup(sampleRate: Float = 1.0f): IO[(TestLogSink, BridgeLogger)] = {
     for {
       sink <- TestLogSink.create
       _ <- sink.reset
@@ -43,10 +44,11 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
     }
   }
 
-  test("implicit config is correctly applied"){
+  test("implicit config is correctly applied") {
     import logger.implicits.BridgeLoggerImplicits._
 
-    implicit val config: BridgeLoggerConfig = BridgeLoggerConfig(minLevel = Debug, bufferBelowMinLevel = true)
+    implicit val config: BridgeLoggerConfig =
+      BridgeLoggerConfig(minLevel = Debug, bufferBelowMinLevel = true)
 
     val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
     setup().flatMap { case (sink, logger) =>
@@ -71,10 +73,14 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
     }
   }
 
-  test("implicit duplicate on buffer correctly"){
+  test("implicit duplicate on buffer correctly") {
     import logger.implicits.BridgeLoggerImplicits._
 
-    implicit val config: BridgeLoggerConfig = BridgeLoggerConfig(minLevel = Debug, bufferBelowMinLevel = true, duplicateEntriesOnBufferDump = true)
+    implicit val config: BridgeLoggerConfig = BridgeLoggerConfig(
+      minLevel = Debug,
+      bufferBelowMinLevel = true,
+      duplicateEntriesOnBufferDump = true,
+    )
 
     val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
     setup().flatMap { case (sink, logger) =>
@@ -101,9 +107,9 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
     }
   }
 
-  test("Zero sample rate functions as expected"){
+  test("Zero sample rate functions as expected") {
     val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
-    setup(0.0F).flatMap { case (sink, logger) =>
+    setup(0.0f).flatMap { case (sink, logger) =>
       for {
         beforeStorage <- logger.invokePrivate(getStorage())
         _ <- logger.debug("This is a debug test")
@@ -119,7 +125,7 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
     }
   }
 
-  test("withConfig changes the config values"){
+  test("withConfig changes the config values") {
     val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
     setup().flatMap { case (sink, logger) =>
       for {

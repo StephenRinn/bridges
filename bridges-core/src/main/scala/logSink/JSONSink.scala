@@ -59,7 +59,7 @@ class JSONSink extends LogSink {
 object JsonHelpers {
   implicit val throwableEncoder: Encoder[Throwable] = {
     Encoder.instance { t =>
-      val cause = if(t.getCause == null){
+      val cause = if (t.getCause == null) {
         null
       } else {
         t.getCause.toString.asJson

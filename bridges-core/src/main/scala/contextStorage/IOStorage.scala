@@ -44,6 +44,6 @@ object IOStorage {
       None,
       sampled = None,
       List[RebuildLog]().empty,
-      None
+      None,
     )
 }

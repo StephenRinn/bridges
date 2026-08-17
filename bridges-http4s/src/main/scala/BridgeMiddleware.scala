@@ -20,7 +20,8 @@ import logEvent.LogLevel
 import logEvent.LogLevel.Info
 import logEvent.LogLevel.Warn
 import logEvent.LogValue
-import logger.{BridgeLogger, BridgeLoggerConfig}
+import logger.BridgeLogger
+import logger.BridgeLoggerConfig
 import org.http4s.Header
 import org.http4s.HttpApp
 import org.typelevel.ci.CIStringSyntax
@@ -29,7 +30,7 @@ object BridgeMiddleware {
   def apply(
       logger: BridgeLogger,
       defaultValues: Map[String, LogValue] = Map[String, LogValue]().empty,
-      customConfig: Option[BridgeLoggerConfig] = None
+      customConfig: Option[BridgeLoggerConfig] = None,
   ): HttpApp[IO] => HttpApp[IO] =
     app =>
       HttpApp { request =>

@@ -61,7 +61,7 @@ object Bridge {
   }
 
   def shutdown: IO[Unit] = {
-    IO{
+    IO {
       if (isNull) {
         throw new IllegalStateException("Bridge has not been initialized")
       } else {
@@ -72,33 +72,53 @@ object Bridge {
 
   def trace(msg: => String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
 
-  def traceUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit] = bridge.traceUpdateContext(msg, values, fields: _*)
+  def traceUpdateContext(
+      msg: => String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = bridge.traceUpdateContext(msg, values, fields: _*)
 
   def debug(msg: => String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
 
-  def debugUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit] = bridge.debugUpdateContext(msg, values, fields: _*)
+  def debugUpdateContext(
+      msg: => String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = bridge.debugUpdateContext(msg, values, fields: _*)
 
   def info(msg: => String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
 
-  def infoUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit] = bridge.infoUpdateContext(msg, values, fields: _*)
+  def infoUpdateContext(
+      msg: => String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = bridge.infoUpdateContext(msg, values, fields: _*)
 
   def warn(msg: => String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
 
-  def warnUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit] = bridge.warnUpdateContext(msg, values, fields: _*)
+  def warnUpdateContext(
+      msg: => String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = bridge.warnUpdateContext(msg, values, fields: _*)
 
   def error(msg: => String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
 
-  def errorUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit] = bridge.errorUpdateContext(msg, values, fields: _*)
+  def errorUpdateContext(
+      msg: => String,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = bridge.errorUpdateContext(msg, values, fields: _*)
 
   def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] =
     bridge.error(msg, e, fields: _*)
 
   def errorUpdateContext(
-                          msg: => String,
-                          e: Throwable,
-                          values: Map[String, LogValue],
-                          fields: LogField*,
-                        ): IO[Unit] = {
+      msg: => String,
+      e: Throwable,
+      values: Map[String, LogValue],
+      fields: LogField*,
+  ): IO[Unit] = {
     bridge.errorUpdateContext(msg, e, values, fields: _*)
   }
 
