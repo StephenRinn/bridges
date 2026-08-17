@@ -33,7 +33,6 @@ import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
 
 trait BridgeLogger {
-  val bridgeConfig: BridgeLoggerConfig
   def trace(msg: => String, fields: LogField*): IO[Unit]
   def traceUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
   def debug(msg: => String, fields: LogField*): IO[Unit]
@@ -85,7 +84,6 @@ final class BridgeLoggerImpl private[logger] (
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
 ) extends BridgeLogger {
-  override val bridgeConfig: BridgeLoggerConfig = bridgeLoggerConfig
   private val contextOps: ContextOperations =
     new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
 
