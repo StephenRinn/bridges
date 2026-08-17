@@ -105,8 +105,8 @@ class Service {
 
 ## Minimum Log Level
 
-`minLevel` defines the boundary between logs that are always emitted and logs
-that are subject to sampling.
+`minLevel` defines the boundary between logs that are emitted when sampled and those which are buffered
+or dropped. Sampling defaults to 100% if not specified so min level would sample all logs on default values.
 
 For example, with:
 
@@ -120,7 +120,7 @@ the behavior is:
 |-------|-----------------------------------------|-------------------------------------------|
 | Trace | buffered if enabled otherwise discarded | emitted if sampleBelowMinLevel is enabled |
 | Debug | buffered if enabled otherwise discarded | emitted if sampleBelowMinLevel is enabled |
-| Info  | buffered if enabled otherwise discarded | emitted                                   |
+| Info  | buffered                                | emitted                                   |
 | Warn  | emitted                                 | emitted                                   |
 | Error | emitted                                 | emitted                                   |
 
@@ -159,8 +159,10 @@ Current context contains:
 - request start/end timestamps
 - sampling state
 - buffered log events
+- bridge config (in case of override)
 
 Because the context is stored in an `IOLocal`, it follows Cats Effect fibers rather than threads.
+
 
 ---
 
@@ -208,6 +210,23 @@ for {
 ```
 
 These values are attached to subsequent log events for the lifetime of the request.
+
+There are also convenience methods to update values while logging
+
+```scala
+val values = ("customerId" -> customer.id).toMap
+for {
+  _ <- logger.traceUpdateContext("Request started", values)
+} yield ()
+```
+
+Finally you can add fields to the request which are set only for the single logging call.
+
+```scala
+for {
+  _ <- logger.trace("Request started", "userId" -> user.id, "service" -> "AuthService")
+} yield ()
+```
 
 ---
 
@@ -327,12 +346,24 @@ on the concrete implementation.
 
 `BridgeLoggerConfig` controls runtime behavior, including:
 
-- minimum log level
-- sampling rate
-- whether logs at or below the minimum level are buffered
-- whether sampled requests continue logging below the minimum level
-- log level that triggers buffered replay
-- buffer size
+- minLevel - minimum log level and the level where sampling occurs
+- sampleRate - sampling rate
+- duplicateEntriesOnBufferDump - allows replaying all logs up to the buffer dump. 
+  - This can be useful for ordering in logs at the expense of duplicated entries for previously emitted logs.
+- bufferBelowMinLevel - whether logs at or below the minimum level are buffered
+- sampleBelowMinLevel - whether sampled requests continue logging below the minimum level
+- replayAllLogLevel - log level that triggers buffered replay
+- bufferSize - buffer size
+
+The config can be set at logger creation, in the request scope, and at the individual log level
+
+
+Individual Log Level (Highest priority)
+Request level/thread level
+Logger setup (Lowest priority)
+
+There is also an abstract class implementing log levels which will implicitly pull
+BridgeLoggerConfigs from the call location.
 
 ---
 
