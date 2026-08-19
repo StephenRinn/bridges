@@ -255,7 +255,7 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   override def trace(msg: => String, fields: LogField*): IO[Unit] = {
-    log(Trace, msg, fields)
+    log(Trace, msg, fields).handleError(_ => IO())
   }
 
   /** Values are added to the context, not based on this log event only
@@ -265,17 +265,24 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
+    val fa = for {
       _ <- contextOps.updateValues(values)
       _ <- trace(msg = msg, fields = fields: _*)
     } yield ()
+
+    for {
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) => fa
+        case _ => IO()
+      }
+    } yield result
   }
 
   override def debug(
       msg: => String,
       fields: LogField*,
   ): IO[Unit] = {
-    log(level = Debug, message = msg, fields = fields)
+    log(level = Debug, message = msg, fields = fields).handleError(_ => IO())
   }
 
   /** Values are added to the context, not based on this log event only
@@ -285,17 +292,24 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
+    val fa = for {
       _ <- contextOps.updateValues(values)
       _ <- debug(msg, fields: _*)
     } yield ()
+
+    for {
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) => fa
+        case _ => IO()
+      }
+    } yield result
   }
 
   override def info(
       msg: => String,
       values: LogField*,
   ): IO[Unit] = {
-    log(level = Info, message = msg, fields = values)
+    log(level = Info, message = msg, fields = values).handleError(_ => IO())
   }
 
   /** Values are added to the context, not based on this log event only
@@ -305,14 +319,21 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
+    val fa = for {
       _ <- contextOps.updateValues(values)
       _ <- info(msg, fields: _*)
     } yield ()
+
+    for {
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) => fa
+        case _ => IO()
+      }
+    } yield result
   }
 
   override def warn(msg: => String, fields: LogField*): IO[Unit] = {
-    log(level = Warn, message = msg, fields = fields)
+    log(level = Warn, message = msg, fields = fields).handleError(_ => IO())
   }
 
   /** Values are added to the context, not based on this log event only
@@ -322,14 +343,21 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
+    val fa = for {
       _ <- contextOps.updateValues(values)
       _ <- warn(msg, fields: _*)
     } yield ()
+
+    for {
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) => fa
+        case _ => IO()
+      }
+    } yield result
   }
 
   override def error(msg: => String, fields: LogField*): IO[Unit] = {
-    log(level = Error, message = msg, fields = fields)
+    log(level = Error, message = msg, fields = fields).handleError(_ => IO())
   }
 
   /** Values are added to the context, not based on this log event only
@@ -339,14 +367,21 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
+    val fa = for {
       _ <- contextOps.updateValues(values)
       _ <- error(msg, fields: _*)
     } yield ()
+
+    for {
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) => fa
+        case _ => IO()
+      }
+    } yield result
   }
 
   override def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] = {
-    log(level = Error, message = msg, fields = fields, throwable = Some(e))
+    log(level = Error, message = msg, fields = fields, throwable = Some(e)).handleError(_ => IO())
   }
 
   /** Values are added to the context, not based on this log event only
@@ -357,10 +392,17 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
+    val fa = for {
       _ <- contextOps.updateValues(values)
       _ <- error(msg, e, fields: _*)
     } yield ()
+
+    for {
+      result <- fa.guaranteeCase {
+        case Outcome.Succeeded(fa) => fa
+        case _ => IO()
+      }
+    } yield result
   }
 
   override def withRequest[A](
