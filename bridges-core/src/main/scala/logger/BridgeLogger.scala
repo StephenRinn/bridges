@@ -51,12 +51,11 @@ trait BridgeLogger {
       fields: LogField*,
   ): IO[Unit]
   def withRequest[A](
-      values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
       correlationId: Option[String] = None,
       requestId: Option[String] = None,
       composable: Boolean = true,
-  )(fa: IO[A])(implicit config: Option[BridgeLoggerConfig] = None): IO[A]
+  )(fa: IO[A])(fields: LogField*)(implicit config: Option[BridgeLoggerConfig] = None): IO[A]
   def updateValues(key: String, value: LogValue): IO[Unit]
   def setCorrelationId(id: String): IO[Unit]
   def setRequestId(id: String): IO[Unit]
@@ -365,12 +364,11 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   override def withRequest[A](
-      values: Map[String, LogValue] = Map(),
       sampleRequest: Option[Boolean] = None,
       correlationId: Option[String] = None,
       requestId: Option[String] = None,
       composable: Boolean = true,
-  )(fa: IO[A])(implicit config: Option[BridgeLoggerConfig] = None): IO[A] = {
+  )(fa: IO[A])(fields: LogField*)(implicit config: Option[BridgeLoggerConfig] = None): IO[A] = {
     for {
       storage <-
         if (composable) {
@@ -397,7 +395,7 @@ final class BridgeLoggerImpl private[logger] (
         } else {
           storage.sampled
         }
-        val updatedValues = storage.values ++ values
+        val updatedValues = storage.values ++ fields.iterator.map(field => field.key -> field.value()).toMap
         storage.copy(
           requestId = rid,
           correlationId = cid,
@@ -413,26 +411,26 @@ final class BridgeLoggerImpl private[logger] (
   private def withRequestInternal[A](newStorage: IOStorage)(fa: IO[A]): IO[A] = {
     val contextSetup = for {
       _ <- ioStorage.set(newStorage)
-      start <- Clock[IO].realTime
+      start <- Clock[IO].monotonic
       _ <- contextOps.markStart(start.toMillis)
     } yield ()
     val faGuarantee = for {
       result <- fa.guaranteeCase {
         case Outcome.Succeeded(_) =>
           for {
-            end <- Clock[IO].realTime
+            end <- Clock[IO].monotonic
             _ <- contextOps.markEnd(end.toMillis)
             _ <- info("Request Completed").handleErrorWith(_ => IO())
           } yield ()
         case Outcome.Errored(e) =>
           for {
-            end <- Clock[IO].realTime
+            end <- Clock[IO].monotonic
             _ <- contextOps.markEnd(end.toMillis)
             _ <- error("Request failed with exception", e).handleErrorWith(_ => IO())
           } yield ()
         case Outcome.Canceled() =>
           for {
-            end <- Clock[IO].realTime
+            end <- Clock[IO].monotonic
             _ <- contextOps.markEnd(end.toMillis)
             _ <- warn("Request cancelled").handleErrorWith(_ => IO())
           } yield ()
