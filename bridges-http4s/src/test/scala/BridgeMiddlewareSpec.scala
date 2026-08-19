@@ -27,7 +27,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("generates missing correlationId") {
     setup.flatMap { case (_, _, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => Ok("hello"))
       }
 
@@ -44,7 +44,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("preserves existing correlation id from request header") {
     setup.flatMap { case (_, _, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => Ok("hello"))
       }
       val request = Request[IO](Method.GET, uri"/")
@@ -62,7 +62,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
   test("context is available inside of route") {
     val getStorage = PrivateMethod[IO[IOStorage]](Symbol("getStorage"))
     setup.flatMap { case (storage, _, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp { _ =>
           for {
             ctx <- logger.invokePrivate(getStorage())
@@ -88,7 +88,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("context clears after success") {
     setup.flatMap { case (storage, _, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => Ok())
       }
 
@@ -103,7 +103,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("context clears after failure") {
     setup.flatMap { case (storage, _, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => IO.raiseError[Response[IO]](new RuntimeException("expected failure")))
       }
 
@@ -118,7 +118,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("middleware does not influence response") {
     setup.flatMap { case (_, _, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => Created("payload"))
       }
 
@@ -135,7 +135,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
   test("concurrent requests have unique correlation ids") {
     setup.flatMap { case (_, _, logger) =>
       val app =
-        BridgeMiddleware(logger) {
+        BridgeMiddleware(logger)() {
           HttpApp { request =>
             val corr = request.headers.get(ci"X-Correlation-ID").map(_.head.value).getOrElse("")
 
@@ -173,7 +173,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("logger writes completion event for successful request") {
     setup.flatMap { case (_, sink, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => Ok())
       }
 
@@ -188,7 +188,7 @@ class BridgeMiddlewareSpec extends CatsEffectSuite with PrivateMethodTester {
 
   test("logger writes completion event for successful request") {
     setup.flatMap { case (_, sink, logger) =>
-      val app = BridgeMiddleware(logger) {
+      val app = BridgeMiddleware(logger)() {
         HttpApp(_ => IO.raiseError[Response[IO]](new RuntimeException("expected failure")))
       }
 

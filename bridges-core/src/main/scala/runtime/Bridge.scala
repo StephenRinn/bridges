@@ -123,11 +123,10 @@ object Bridge {
   }
 
   def withRequest[A](
-      values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
       correlationId: Option[String] = None,
       requestId: Option[String] = None,
-  )(fa: IO[A]): IO[A] = bridge.withRequest[A](values, sampleRequest, correlationId, requestId)(fa)
+  )(fa: IO[A])(fields: LogField*): IO[A] = bridge.withRequest[A](sampleRequest, correlationId, requestId)(fa)(fields: _*)
 
   def updateValues(key: String, value: LogValue): IO[Unit] = bridge.updateValues(key, value)
 

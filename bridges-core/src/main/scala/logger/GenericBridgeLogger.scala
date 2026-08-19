@@ -42,12 +42,11 @@ trait GenericBridgeLogger[F[_]] {
       fields: LogField*,
   ): F[Unit]
   def withRequest[A](
-      values: Map[String, LogValue] = Map[String, LogValue](),
       sampleRequest: Option[Boolean] = None,
       correlationId: String = UUID.randomUUID().toString,
       requestId: String = UUID.randomUUID().toString,
       transform: F ~> IO,
-  )(fa: F[A]): F[A]
+  )(fa: F[A])(fields: LogField*): F[A]
   def updateValues(key: String, value: LogValue): F[Unit]
   def setCorrelationId(id: String): F[Unit]
   def setRequestId(id: String): F[Unit]
@@ -133,20 +132,18 @@ object GenericBridgeLogger {
       }
 
       override def withRequest[A](
-          values: Map[String, LogValue] = Map[String, LogValue](),
           sampleRequest: Option[Boolean] = None,
           correlationId: String = UUID.randomUUID().toString,
           requestId: String = UUID.randomUUID().toString,
           transform: F ~> IO,
-      )(fa: F[A]): F[A] = {
+      )(fa: F[A])(fields: LogField*): F[A] = {
 
         LiftIO[F].liftIO(
           bridge.withRequest[A](
-            values = values,
             sampleRequest = sampleRequest,
             correlationId = Some(correlationId),
             requestId = Some(requestId),
-          )(transform(fa)),
+          )(transform(fa))(fields: _*),
         )
       }
 
