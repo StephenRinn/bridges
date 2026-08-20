@@ -1,18 +1,18 @@
 ThisBuild / version := "1.0.3"
 ThisBuild / description :=
   "Context-aware logging for Cats Effect"
-ThisBuild / organization := "io.github.StephenRinn"
+ThisBuild / organization := "io.github.stephenrinn"
 ThisBuild / organizationName := "Stephen Rinn"
-ThisBuild / organizationHomepage := Some(url("https://github.com/StephenRinn"))
+ThisBuild / organizationHomepage := Some(url("https://github.com/stephenrinn"))
 
-ThisBuild / homepage := Some(url("https://github.com/StephenRinn/bridges"))
+ThisBuild / homepage := Some(url("https://github.com/stephenrinn/bridges"))
 
 ThisBuild / scalaVersion := "2.13.18"
 
 ThisBuild / scmInfo := Some(
   ScmInfo(
-    url("https://github.com/StephenRinn/bridges"),
-    "scm:git:https://github.com/StephenRinn/bridges.git",
+    url("https://github.com/stephenrinn/bridges"),
+    "scm:git:https://github.com/stephenrinn/bridges.git",
   ),
 )
 
@@ -48,7 +48,7 @@ ThisBuild / developers := List(
     id = "StephenRinn",
     name = "Stephen Rinn",
     email = "rinnsteve@gmail.com",
-    url = url("https://github.com/StephenRinn"),
+    url = url("https://github.com/stephenrinn"),
   ),
 )
 
