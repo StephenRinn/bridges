@@ -1,7 +1,7 @@
-ThisBuild / version := "1.0.2"
+ThisBuild / version := "1.0.3"
 ThisBuild / description :=
   "Context-aware logging for Cats Effect"
-ThisBuild / organization := "io.github.stephenrinn"
+ThisBuild / organization := "io.github.StephenRinn"
 ThisBuild / organizationName := "Stephen Rinn"
 ThisBuild / organizationHomepage := Some(url("https://github.com/StephenRinn"))
 
