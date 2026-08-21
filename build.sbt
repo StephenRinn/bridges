@@ -39,9 +39,9 @@ ThisBuild / headerLicense := Some(
   ),
 )
 
-val http4sVersion = "0.23.34"
+val http4sVersion = "0.23.36"
 val catsVersion = "3.7.0"
-val otel4sVersion = "0.19.0"
+val otel4sVersion = "0.19.1"
 
 ThisBuild / developers := List(
   Developer(
@@ -67,8 +67,8 @@ lazy val core = project
     name := "bridges-core",
     libraryDependencies ++= Seq(
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.6",
-      "ch.qos.logback" % "logback-classic" % "1.5.32",
-      "io.circe" %% "circe-core" % "0.14.15",
+      "ch.qos.logback" % "logback-classic" % "1.6.3",
+      "io.circe" %% "circe-core" % "0.14.16",
     ),
   )
 
