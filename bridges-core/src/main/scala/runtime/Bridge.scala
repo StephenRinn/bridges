@@ -126,7 +126,8 @@ object Bridge {
       sampleRequest: Option[Boolean] = None,
       correlationId: Option[String] = None,
       requestId: Option[String] = None,
-  )(fa: IO[A])(fields: LogField*): IO[A] = bridge.withRequest[A](sampleRequest, correlationId, requestId)(fa)(fields: _*)
+  )(fa: IO[A])(fields: LogField*): IO[A] =
+    bridge.withRequest[A](sampleRequest, correlationId, requestId)(fa)(fields: _*)
 
   def updateValues(key: String, value: LogValue): IO[Unit] = bridge.updateValues(key, value)
 

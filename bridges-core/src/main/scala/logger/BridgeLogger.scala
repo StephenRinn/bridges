@@ -266,10 +266,10 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   private def handleCancel(
-                            msg: => String,
-                            values: Map[String, LogValue] = Map[String,LogValue](),
-                            fields: Seq[LogField],
-                          ): IO[Unit] = {
+      msg: => String,
+      values: Map[String, LogValue] = Map[String, LogValue](),
+      fields: Seq[LogField],
+  ): IO[Unit] = {
     bridgeLoggerConfig.fallbackResponse.cancelFallback(msg, values, fields)
   }
 

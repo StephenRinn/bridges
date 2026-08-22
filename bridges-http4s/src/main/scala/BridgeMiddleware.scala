@@ -16,9 +16,11 @@
 
 import cats.effect.IO
 import java.util.UUID
-import logEvent.{LogField, LogLevel, LogValue}
+import logEvent.LogField
+import logEvent.LogLevel
 import logEvent.LogLevel.Info
 import logEvent.LogLevel.Warn
+import logEvent.LogValue
 import logger.BridgeLogger
 import logger.config.BridgeLoggerConfig
 import org.http4s.Header
