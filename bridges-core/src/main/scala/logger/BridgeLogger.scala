@@ -29,7 +29,6 @@ import logEvent.LogLevel._
 import logEvent.LogValue
 import logSink.LogSink
 import logger.config.BridgeLoggerConfig
-import logger.config._
 import logger.traceContext.TraceContextProvider
 import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
