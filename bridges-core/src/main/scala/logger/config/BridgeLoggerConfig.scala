@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package logger
+package logger.config
 
 import logEvent.LogLevel
 import logEvent.LogLevel._
@@ -28,6 +28,7 @@ case class BridgeLoggerConfig(
     sampleBelowMinLevel: Boolean = false,
     bufferBelowMinLevel: Boolean = false,
     bufferSize: Int = 200,
+    fallbackResponse: FallbackResponse = FallbackResponse(),
 )
 
 object BridgeLoggerConfig {

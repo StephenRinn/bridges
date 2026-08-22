@@ -23,7 +23,7 @@ import logEvent.LogField
 import logEvent.LogLevel
 import logEvent.LogValue
 import logEvent.ToLogValue
-import logger.BridgeLoggerConfig
+import logger.config.BridgeLoggerConfig
 
 final class ContextOperations(
     private val local: IOLocal[IOStorage],

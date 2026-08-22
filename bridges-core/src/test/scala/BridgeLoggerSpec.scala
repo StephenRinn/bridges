@@ -2,7 +2,7 @@ import cats.effect.IO
 import contextStorage.IOStorage
 import logEvent.LogLevel._
 import logger.BridgeLogger
-import logger.BridgeLoggerConfig
+import logger.config.BridgeLoggerConfig
 import munit.CatsEffectSuite
 import org.scalatest.PrivateMethodTester
 import util.TestLogSink
