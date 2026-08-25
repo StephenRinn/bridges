@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware.config
+package logSink.asyncLogSink.config
 
 trait QueueOverflow
 

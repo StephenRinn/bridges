@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware
+package logSink.asyncLogSink
 
 import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.std.Queue
 import logEvent.LogEvent
 import logSink.LogSink
-import logSink.asyncMiddleware.config.LogDeliveryFailure._
-import logSink.asyncMiddleware.config.QueueCapacity._
-import logSink.asyncMiddleware.config.QueueOverflow._
-import logSink.asyncMiddleware.config.QueuedLogSinkConfig
-import logSink.asyncMiddleware.policies.LogDeliveryPolicy
+import logSink.asyncLogSink.config.LogDeliveryFailure._
+import logSink.asyncLogSink.config.QueueCapacity._
+import logSink.asyncLogSink.config.QueueOverflow._
+import logSink.asyncLogSink.config.QueuedLogSinkConfig
+import logSink.policies.LogDeliveryPolicy
 
 class QueuedLogSink private (
     queue: Queue[IO, LogEvent],

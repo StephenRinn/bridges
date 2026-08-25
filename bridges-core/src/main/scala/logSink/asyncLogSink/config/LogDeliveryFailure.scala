@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware.policies
+package logSink.asyncLogSink.config
 
-import cats.effect.IO
+sealed trait LogDeliveryFailure
 
-trait LogDeliveryPolicy {
-  def apply[A](fa: => IO[A]): IO[A]
+object LogDeliveryFailure {
+  case object Drop extends LogDeliveryFailure
+  case object Stop extends LogDeliveryFailure
 }

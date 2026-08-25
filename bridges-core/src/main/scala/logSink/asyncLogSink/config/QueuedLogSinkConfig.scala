@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware.config
+package logSink.asyncLogSink.config
 
-sealed trait LogDeliveryFailure
+import logSink.asyncLogSink.config.LogDeliveryFailure.Drop
+import logSink.asyncLogSink.config.QueueCapacity.Unbounded
+import logSink.asyncLogSink.config.QueueOverflow.Block
 
-object LogDeliveryFailure {
-  case object Drop extends LogDeliveryFailure
-  case object Stop extends LogDeliveryFailure
-}
+case class QueuedLogSinkConfig(
+    capacity: QueueCapacity = Unbounded,
+    overflow: QueueOverflow = Block,
+    logDeliveryFailure: LogDeliveryFailure = Drop,
+)

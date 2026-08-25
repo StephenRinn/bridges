@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware
+package logSink.policies
 
 import cats.effect.IO
 import logEvent.LogEvent
 import logSink.LogSink
-import logSink.asyncMiddleware.policies.LogDeliveryPolicy
 
-class AsyncSinkMiddleware(sink: LogSink, asyncPolicies: LogDeliveryPolicy*) extends LogSink {
+class SinkMiddleware(sink: LogSink, asyncPolicies: LogDeliveryPolicy*) extends LogSink {
 
-  override def log(event: LogEvent): IO[Unit] = asyncPolicies.foldLeft[IO[Unit]](IO.unit) {
+  override def log(event: LogEvent): IO[Unit] = asyncPolicies.foldLeft[IO[Unit]](sink.log(event)) {
     (acc, policy) =>
       policy.apply(acc)
   }

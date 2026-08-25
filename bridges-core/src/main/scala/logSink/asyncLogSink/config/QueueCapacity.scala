@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware.config
+package logSink.asyncLogSink.config
 
-import logSink.asyncMiddleware.config.LogDeliveryFailure.Drop
-import logSink.asyncMiddleware.config.QueueCapacity.Unbounded
-import logSink.asyncMiddleware.config.QueueOverflow.Block
+sealed trait QueueCapacity
 
-case class QueuedLogSinkConfig(
-    capacity: QueueCapacity = Unbounded,
-    overflow: QueueOverflow = Block,
-    logDeliveryFailure: LogDeliveryFailure = Drop,
-)
+object QueueCapacity {
+  case object Unbounded extends QueueCapacity
+  final case class Bounded(max: Int) extends QueueCapacity{
+    require(max > 0)
+  }
+}

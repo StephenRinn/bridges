@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package logSink.asyncMiddleware.config
+package logSink.policies
 
-sealed trait QueueCapacity
+import cats.effect.IO
 
-object QueueCapacity {
-  case object Unbounded extends QueueCapacity
-  final case class Bounded(max: Int) extends QueueCapacity
+trait LogDeliveryPolicy {
+  def apply[A](fa: => IO[A]): IO[A]
 }
