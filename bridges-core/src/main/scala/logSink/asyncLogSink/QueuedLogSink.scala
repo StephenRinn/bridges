@@ -16,6 +16,7 @@
 
 package logSink.asyncLogSink
 
+import cats.effect.Deferred
 import cats.effect.IO
 import cats.effect.Resource
 import cats.effect.std.Queue
@@ -59,9 +60,13 @@ object QueuedLogSink {
     for {
       queue <- Resource.eval(createQueue(config))
 
+      workerDeath <- Resource.eval(
+        Deferred[IO, Throwable],
+      )
+
       _ <- Resource.make {
-        queue.take
-          .flatMap { event =>
+        val worker = {
+          queue.take.flatMap { event =>
             val logAction = logSink.log(event)
             val fa = policies.foldLeft(logAction) { case (current, policy) =>
               policy.apply(current)
@@ -75,9 +80,11 @@ object QueuedLogSink {
                 }
               case Stop => fa
             }
-          }
-          .foreverM
-          .start
+          }.foreverM
+        }
+        worker.handleErrorWith { e =>
+          workerDeath.complete(e)
+        }.start
       }(_.cancel)
     } yield new QueuedLogSink(queue, config)
   }
