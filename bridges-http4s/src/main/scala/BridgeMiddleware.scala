@@ -47,7 +47,7 @@ object BridgeMiddleware {
           .withRequest(
             correlationId = Some(correlationId),
             requestId = Some(requestId),
-          )(app(request))(fields: _*)
+          )(app(request))(fields: _*)(customConfig)
           .map(_.putHeaders(correlationHeader))
       }
 }

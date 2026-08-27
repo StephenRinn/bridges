@@ -99,7 +99,7 @@ object BridgeLoggerImplicits {
     ): IO[Unit] = {
       for {
         _ <- logger.log(
-          level = Trace,
+          level = Error,
           message = msg,
           fields = fields,
           throwable = Some(e),

@@ -19,6 +19,9 @@ package logger.config
 import logEvent.LogLevel
 import logEvent.LogLevel._
 
+/**
+ * @param bufferSize Only affects buffer size on top level config
+ */
 case class BridgeLoggerConfig(
     minLevel: LogLevel = Info,
     replayAllLogLevel: LogLevel = Warn,
@@ -28,7 +31,6 @@ case class BridgeLoggerConfig(
     sampleBelowMinLevel: Boolean = false,
     bufferBelowMinLevel: Boolean = false,
     bufferSize: Int = 200,
-    fallbackResponse: FallbackResponse = FallbackResponse(),
 )
 
 object BridgeLoggerConfig {

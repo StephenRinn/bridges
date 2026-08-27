@@ -31,12 +31,49 @@ import logSink.policies.LogDeliveryPolicy
 class QueuedLogSink private (
     queue: Queue[IO, LogEvent],
     config: QueuedLogSinkConfig,
+    workerDeath: Deferred[IO, Throwable],
+    shutdown: Deferred[IO, Unit],
 ) extends LogSink {
-  override def log(event: LogEvent): IO[Unit] = {
+  private def enqueue(event: LogEvent): IO[Unit] = {
     config.overflow match {
-      case Block => queue.offer(event)
-      case _ =>
+      case Block =>
+        queue.offer(event)
+
+      case DropNewest =>
         queue.tryOffer(event).void
+    }
+  }
+
+  override def log(event: LogEvent): IO[Unit] = {
+    config.logDeliveryFailure match {
+      case Stop =>
+        IO.race(
+          workerDeath.get.flatMap(IO.raiseError),
+          IO.race(
+            shutdown.get *> IO.raiseError(
+              new IllegalStateException(
+                "Error: Sink has been shut down.",
+              ),
+            ),
+            enqueue(event),
+          ),
+        ).flatMap {
+          case Left(error) => IO.raiseError(error)
+          case Right(result) => IO.pure(result)
+        }
+
+      case Drop =>
+        IO.race(
+          shutdown.get *> IO.raiseError(
+            new IllegalStateException(
+              "Error: Sink shutdown",
+            ),
+          ),
+          enqueue(event),
+        ).flatMap {
+          case Left(error) => IO.raiseError(error)
+          case Right(result) => IO.pure(result)
+        }
     }
   }
 }
@@ -52,11 +89,64 @@ object QueuedLogSink {
     }
   }
 
-  def createResource(
+  private def applyPolicies(
+      event: LogEvent,
       logSink: LogSink,
       config: QueuedLogSinkConfig,
       policies: LogDeliveryPolicy*,
-  ): Resource[IO, LogSink] = {
+  ): IO[Unit] = {
+    val logAction = logSink.log(event)
+
+    val policy =
+      policies.foldLeft(logAction) { case (current, policy) =>
+        policy.apply(current)
+      }
+
+    config.logDeliveryFailure match {
+      case Drop =>
+        policy.handleErrorWith { _ =>
+          IO.unit
+        }
+
+      case Stop =>
+        policy
+    }
+  }
+
+  private def drain(
+      queue: Queue[IO, LogEvent],
+      process: LogEvent => IO[Unit],
+  ): IO[Unit] = {
+    queue.tryTake.flatMap {
+      case Some(event) =>
+        process(event) *> drain(queue, process)
+
+      case None =>
+        IO.unit
+    }
+  }
+
+  private def workerLoop(
+      queue: Queue[IO, LogEvent],
+      shutdown: Deferred[IO, Unit],
+      process: LogEvent => IO[Unit],
+  ): IO[Unit] = {
+
+    queue.take.race(shutdown.get).flatMap {
+      case Left(event) =>
+        process(event) *> workerLoop(queue, shutdown, process)
+
+      case Right(_) =>
+        drain(queue, process)
+    }
+  }
+
+  def createResource(
+                      logSink: LogSink,
+                      config: QueuedLogSinkConfig,
+                      policies: LogDeliveryPolicy*,
+                    ): Resource[IO, LogSink] = {
+
     for {
       queue <- Resource.eval(createQueue(config))
 
@@ -64,28 +154,45 @@ object QueuedLogSink {
         Deferred[IO, Throwable],
       )
 
-      _ <- Resource.make {
-        val worker = {
-          queue.take.flatMap { event =>
-            val logAction = logSink.log(event)
-            val fa = policies.foldLeft(logAction) { case (current, policy) =>
-              policy.apply(current)
-            }
+      shutdown <- Resource.eval(
+        Deferred[IO, Unit],
+      )
 
-            config.logDeliveryFailure match {
-              case Drop =>
-                fa.handleErrorWith { error =>
-                  // TODO decide final handling for drop if any
-                  IO.unit
-                }
-              case Stop => fa
-            }
-          }.foreverM
-        }
-        worker.handleErrorWith { e =>
-          workerDeath.complete(e)
+      worker <- Resource.make {
+
+        val process: LogEvent => IO[Unit] =
+          event =>
+            applyPolicies(
+              event,
+              logSink,
+              config,
+              policies: _*,
+            )
+
+        workerLoop(
+          queue,
+          shutdown,
+          process,
+        ).handleErrorWith { error =>
+          config.logDeliveryFailure match {
+            case Stop =>
+              workerDeath.complete(error).void
+
+            case Drop =>
+              IO.unit
+          }
         }.start
-      }(_.cancel)
-    } yield new QueuedLogSink(queue, config)
+
+      } { fiber =>
+        shutdown.complete(()).void *>
+          fiber.join.void
+      }
+
+    } yield new QueuedLogSink(
+      queue = queue,
+      config = config,
+      workerDeath = workerDeath,
+      shutdown = shutdown,
+    )
   }
 }
