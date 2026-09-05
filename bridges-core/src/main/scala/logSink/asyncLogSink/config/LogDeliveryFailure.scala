@@ -14,24 +14,11 @@
  * limitations under the License.
  */
 
-package logger
+package logSink.asyncLogSink.config
 
-import logEvent.LogLevel
-import logEvent.LogLevel._
+sealed trait LogDeliveryFailure
 
-case class BridgeLoggerConfig(
-    minLevel: LogLevel = Info,
-    replayAllLogLevel: LogLevel = Warn,
-    // Can simplify replay if all logs are grouped
-    duplicateEntriesOnBufferDump: Boolean = false,
-    sampleRate: Float = 1.0f,
-    sampleBelowMinLevel: Boolean = false,
-    bufferBelowMinLevel: Boolean = false,
-    bufferSize: Int = 200,
-)
-
-object BridgeLoggerConfig {
-  def default: BridgeLoggerConfig = {
-    new BridgeLoggerConfig()
-  }
+object LogDeliveryFailure {
+  case object Drop extends LogDeliveryFailure
+  case object Stop extends LogDeliveryFailure
 }

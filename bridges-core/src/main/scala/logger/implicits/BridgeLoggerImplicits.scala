@@ -19,7 +19,7 @@ import cats.effect.IO
 import logEvent.LogField
 import logEvent.LogLevel._
 import logger.BridgeLogger
-import logger.BridgeLoggerConfig
+import logger.config.BridgeLoggerConfig
 
 object BridgeLoggerImplicits {
   implicit class ops(logger: BridgeLogger) {
@@ -99,7 +99,7 @@ object BridgeLoggerImplicits {
     ): IO[Unit] = {
       for {
         _ <- logger.log(
-          level = Trace,
+          level = Error,
           message = msg,
           fields = fields,
           throwable = Some(e),

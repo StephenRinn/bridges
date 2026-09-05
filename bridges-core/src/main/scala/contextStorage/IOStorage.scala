@@ -17,7 +17,7 @@
 package contextStorage
 
 import logEvent._
-import logger.BridgeLoggerConfig
+import logger.config.BridgeLoggerConfig
 
 final case class IOStorage(
     requestId: String,

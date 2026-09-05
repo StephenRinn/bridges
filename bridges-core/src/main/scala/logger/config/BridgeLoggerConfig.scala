@@ -1,0 +1,40 @@
+/*
+ * Copyright 2026 Stephen Rinn
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package logger.config
+
+import logEvent.LogLevel
+import logEvent.LogLevel._
+
+/**
+ * @param bufferSize Only affects buffer size on top level config
+ */
+case class BridgeLoggerConfig(
+    minLevel: LogLevel = Info,
+    replayAllLogLevel: LogLevel = Warn,
+    // Can simplify replay if all logs are grouped
+    duplicateEntriesOnBufferDump: Boolean = false,
+    sampleRate: Float = 1.0f,
+    sampleBelowMinLevel: Boolean = false,
+    bufferBelowMinLevel: Boolean = false,
+    bufferSize: Int = 200,
+)
+
+object BridgeLoggerConfig {
+  def default: BridgeLoggerConfig = {
+    new BridgeLoggerConfig()
+  }
+}

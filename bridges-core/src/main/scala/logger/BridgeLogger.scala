@@ -28,6 +28,8 @@ import logEvent.LogLevel
 import logEvent.LogLevel._
 import logEvent.LogValue
 import logSink.LogSink
+import logger.config.BridgeLoggerConfig
+import logger.config.FallbackResponse
 import logger.traceContext.TraceContextProvider
 import scala.math.Ordered.orderingToOrdered
 import scala.util.Random
@@ -82,6 +84,7 @@ final class BridgeLoggerImpl private[logger] (
     traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
+    fallbackResponse: FallbackResponse = FallbackResponse(),
 ) extends BridgeLogger {
   private val contextOps: ContextOperations =
     new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
@@ -254,8 +257,30 @@ final class BridgeLoggerImpl private[logger] (
     }
   }
 
+  private def handleError(
+      e: Throwable,
+      msg: => String,
+      values: Map[String, LogValue] = Map[String, LogValue](),
+      fields: Seq[LogField],
+  ): IO[Unit] = {
+    fallbackResponse.errorFallback(e, msg, values, fields)
+  }
+
+  private def handleCancel(
+      msg: => String,
+      values: Map[String, LogValue] = Map[String, LogValue](),
+      fields: Seq[LogField],
+  ): IO[Unit] = {
+    fallbackResponse.cancelFallback(msg, values, fields)
+  }
+
   override def trace(msg: => String, fields: LogField*): IO[Unit] = {
-    log(Trace, msg, fields).handleError(_ => IO())
+    log(Trace, msg, fields).guaranteeCase {
+      case Outcome.Succeeded(fa) => fa
+      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+      case _ => IO()
+    }
   }
 
   /** Values are added to the context, not based on this log event only
@@ -265,24 +290,27 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    val fa = for {
-      _ <- contextOps.updateValues(values)
-      _ <- trace(msg = msg, fields = fields: _*)
-    } yield ()
-
     for {
-      result <- fa.guaranteeCase {
+      _ <- contextOps.updateValues(values).guaranteeCase {
         case Outcome.Succeeded(fa) => fa
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
         case _ => IO()
       }
-    } yield result
+      _ <- trace(msg = msg, fields = fields: _*)
+    } yield ()
   }
 
   override def debug(
       msg: => String,
       fields: LogField*,
   ): IO[Unit] = {
-    log(level = Debug, message = msg, fields = fields).handleError(_ => IO())
+    log(level = Debug, message = msg, fields = fields).guaranteeCase {
+      case Outcome.Succeeded(fa) => fa
+      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+      case _ => IO()
+    }
   }
 
   /** Values are added to the context, not based on this log event only
@@ -292,24 +320,27 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    val fa = for {
-      _ <- contextOps.updateValues(values)
-      _ <- debug(msg, fields: _*)
-    } yield ()
-
     for {
-      result <- fa.guaranteeCase {
+      _ <- contextOps.updateValues(values).guaranteeCase {
         case Outcome.Succeeded(fa) => fa
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
         case _ => IO()
       }
-    } yield result
+      _ <- debug(msg, fields: _*)
+    } yield ()
   }
 
   override def info(
       msg: => String,
-      values: LogField*,
+      fields: LogField*,
   ): IO[Unit] = {
-    log(level = Info, message = msg, fields = values).handleError(_ => IO())
+    log(level = Info, message = msg, fields = fields).guaranteeCase {
+      case Outcome.Succeeded(fa) => fa
+      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+      case _ => IO()
+    }
   }
 
   /** Values are added to the context, not based on this log event only
@@ -319,21 +350,24 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    val fa = for {
-      _ <- contextOps.updateValues(values)
-      _ <- info(msg, fields: _*)
-    } yield ()
-
     for {
-      result <- fa.guaranteeCase {
+      _ <- contextOps.updateValues(values).guaranteeCase {
         case Outcome.Succeeded(fa) => fa
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
         case _ => IO()
       }
-    } yield result
+      _ <- info(msg, fields: _*)
+    } yield ()
   }
 
   override def warn(msg: => String, fields: LogField*): IO[Unit] = {
-    log(level = Warn, message = msg, fields = fields).handleError(_ => IO())
+    log(level = Warn, message = msg, fields = fields).guaranteeCase {
+      case Outcome.Succeeded(fa) => fa
+      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+      case _ => IO()
+    }
   }
 
   /** Values are added to the context, not based on this log event only
@@ -343,21 +377,24 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    val fa = for {
-      _ <- contextOps.updateValues(values)
-      _ <- warn(msg, fields: _*)
-    } yield ()
-
     for {
-      result <- fa.guaranteeCase {
+      _ <- contextOps.updateValues(values).guaranteeCase {
         case Outcome.Succeeded(fa) => fa
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
         case _ => IO()
       }
-    } yield result
+      _ <- warn(msg, fields: _*)
+    } yield ()
   }
 
   override def error(msg: => String, fields: LogField*): IO[Unit] = {
-    log(level = Error, message = msg, fields = fields).handleError(_ => IO())
+    log(level = Error, message = msg, fields = fields).guaranteeCase {
+      case Outcome.Succeeded(fa) => fa
+      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+      case _ => IO()
+    }
   }
 
   /** Values are added to the context, not based on this log event only
@@ -367,21 +404,24 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    val fa = for {
-      _ <- contextOps.updateValues(values)
-      _ <- error(msg, fields: _*)
-    } yield ()
-
     for {
-      result <- fa.guaranteeCase {
+      _ <- contextOps.updateValues(values).guaranteeCase {
         case Outcome.Succeeded(fa) => fa
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
         case _ => IO()
       }
-    } yield result
+      _ <- error(msg, fields: _*)
+    } yield ()
   }
 
   override def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] = {
-    log(level = Error, message = msg, fields = fields, throwable = Some(e)).handleError(_ => IO())
+    log(level = Error, message = msg, fields = fields, throwable = Some(e)).guaranteeCase {
+      case Outcome.Succeeded(fa) => fa
+      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+      case _ => IO()
+    }
   }
 
   /** Values are added to the context, not based on this log event only
@@ -392,17 +432,15 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    val fa = for {
-      _ <- contextOps.updateValues(values)
-      _ <- error(msg, e, fields: _*)
-    } yield ()
-
     for {
-      result <- fa.guaranteeCase {
+      _ <- contextOps.updateValues(values).guaranteeCase {
         case Outcome.Succeeded(fa) => fa
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
         case _ => IO()
       }
-    } yield result
+      _ <- error(msg, e, fields: _*)
+    } yield ()
   }
 
   override def withRequest[A](
@@ -437,7 +475,8 @@ final class BridgeLoggerImpl private[logger] (
         } else {
           storage.sampled
         }
-        val updatedValues = storage.values ++ fields.iterator.map(field => field.key -> field.value()).toMap
+        val updatedValues =
+          storage.values ++ fields.iterator.map(field => field.key -> field.value()).toMap
         storage.copy(
           requestId = rid,
           correlationId = cid,
@@ -553,6 +592,7 @@ object BridgeLogger {
       sampleIncludesBelowMinLevel: Boolean = false,
       bufferMessagesBelowMinLevel: Boolean = false,
       logBufferSize: Int = 200,
+      fallbackResponse: FallbackResponse = FallbackResponse(),
   ) {
 
     /** Minimum level used as the sampling/buffering boundary.
@@ -611,6 +651,10 @@ object BridgeLogger {
       */
     def replayAllLogLevel(replayAllLogLevel: LogLevel): builder = {
       copy(replayAllLogLevel = replayAllLogLevel)
+    }
+
+    def withFallback(fallbackResponse: FallbackResponse): builder = {
+      copy(fallbackResponse = fallbackResponse)
     }
 
     def traceContextProvider(traceContextProvider: TraceContextProvider): builder = {

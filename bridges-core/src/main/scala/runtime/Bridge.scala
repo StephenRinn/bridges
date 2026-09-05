@@ -70,7 +70,11 @@ object Bridge {
     }
   }
 
-  def trace(msg: => String, fields: LogField*): IO[Unit] = bridge.trace(msg, fields: _*)
+  def withBridge[A](f: BridgeLogger => IO[A]): IO[A] = {
+    IO(bridge).flatMap(f)
+  }
+
+  def trace(msg: => String, fields: LogField*): IO[Unit] = withBridge(_.trace(msg, fields: _*))
 
   def traceUpdateContext(
       msg: => String,
@@ -78,40 +82,40 @@ object Bridge {
       fields: LogField*,
   ): IO[Unit] = bridge.traceUpdateContext(msg, values, fields: _*)
 
-  def debug(msg: => String, fields: LogField*): IO[Unit] = bridge.debug(msg, fields: _*)
+  def debug(msg: => String, fields: LogField*): IO[Unit] = withBridge(_.debug(msg, fields: _*))
 
   def debugUpdateContext(
       msg: => String,
       values: Map[String, LogValue],
       fields: LogField*,
-  ): IO[Unit] = bridge.debugUpdateContext(msg, values, fields: _*)
+  ): IO[Unit] = withBridge(_.debugUpdateContext(msg, values, fields: _*))
 
-  def info(msg: => String, fields: LogField*): IO[Unit] = bridge.info(msg, fields: _*)
+  def info(msg: => String, fields: LogField*): IO[Unit] = withBridge(_.info(msg, fields: _*))
 
   def infoUpdateContext(
       msg: => String,
       values: Map[String, LogValue],
       fields: LogField*,
-  ): IO[Unit] = bridge.infoUpdateContext(msg, values, fields: _*)
+  ): IO[Unit] = withBridge(_.infoUpdateContext(msg, values, fields: _*))
 
-  def warn(msg: => String, fields: LogField*): IO[Unit] = bridge.warn(msg, fields: _*)
+  def warn(msg: => String, fields: LogField*): IO[Unit] = withBridge(_.warn(msg, fields: _*))
 
   def warnUpdateContext(
       msg: => String,
       values: Map[String, LogValue],
       fields: LogField*,
-  ): IO[Unit] = bridge.warnUpdateContext(msg, values, fields: _*)
+  ): IO[Unit] = withBridge(_.warnUpdateContext(msg, values, fields: _*))
 
-  def error(msg: => String, fields: LogField*): IO[Unit] = bridge.error(msg, fields: _*)
+  def error(msg: => String, fields: LogField*): IO[Unit] = withBridge(_.error(msg, fields: _*))
 
   def errorUpdateContext(
       msg: => String,
       values: Map[String, LogValue],
       fields: LogField*,
-  ): IO[Unit] = bridge.errorUpdateContext(msg, values, fields: _*)
+  ): IO[Unit] = withBridge(_.errorUpdateContext(msg, values, fields: _*))
 
   def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] =
-    bridge.error(msg, e, fields: _*)
+    withBridge(_.error(msg, e, fields: _*))
 
   def errorUpdateContext(
       msg: => String,
@@ -119,19 +123,20 @@ object Bridge {
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    bridge.errorUpdateContext(msg, e, values, fields: _*)
+    withBridge(_.errorUpdateContext(msg, e, values, fields: _*))
   }
 
   def withRequest[A](
       sampleRequest: Option[Boolean] = None,
       correlationId: Option[String] = None,
       requestId: Option[String] = None,
-  )(fa: IO[A])(fields: LogField*): IO[A] = bridge.withRequest[A](sampleRequest, correlationId, requestId)(fa)(fields: _*)
+  )(fa: IO[A])(fields: LogField*): IO[A] =
+    withBridge(_.withRequest[A](sampleRequest, correlationId, requestId)(fa)(fields: _*))
 
-  def updateValues(key: String, value: LogValue): IO[Unit] = bridge.updateValues(key, value)
+  def updateValues(key: String, value: LogValue): IO[Unit] = withBridge(_.updateValues(key, value))
 
-  def setCorrelationId(id: String): IO[Unit] = bridge.setCorrelationId(id)
+  def setCorrelationId(id: String): IO[Unit] = withBridge(_.setCorrelationId(id))
 
-  def setRequestId(id: String): IO[Unit] = bridge.setRequestId(id)
+  def setRequestId(id: String): IO[Unit] = withBridge(_.setRequestId(id))
 
 }
