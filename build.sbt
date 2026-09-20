@@ -101,13 +101,21 @@ lazy val http4s = project
 lazy val benchmark = project
   .in(file("bridges-benchmark"))
   .dependsOn(core)
+  .enablePlugins(JmhPlugin)
   .settings(
-    name := "bridges-benchmark"
+    name := "bridges-benchmark",
+    publish / skip := true,
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "log4cats-slf4j" % "2.8.0",
+      "dev.scalafreaks" %% "odin-core" % "0.20.2",
+      "org.slf4j" % "slf4j-api" % "2.0.19",
+      "ch.qos.logback" % "logback-classic" % "1.6.3",
+    ),
   )
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core, http4s, otel4s)
+  .aggregate(core, http4s, otel4s, benchmark)
   .settings(
     publish / skip := true,
   )
