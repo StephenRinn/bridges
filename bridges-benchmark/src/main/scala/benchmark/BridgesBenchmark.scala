@@ -14,11 +14,7 @@ class BridgesBenchmark extends BenchmarkBase {
     logger = BridgeLogger.builder(
       minLevel = Info,
       replayAllLogLevel = Warn,
-      sampleRate = 1.0f,
-      sampleIncludesBelowMinLevel = false,
-      bufferMessagesBelowMinLevel = false,
-      logBufferSize = 200,
-    ).build(NoOpBridgeSink).unsafeRunSync()
+    ).build(NoOpBridgesSink).unsafeRunSync()
   }
 
   @Benchmark

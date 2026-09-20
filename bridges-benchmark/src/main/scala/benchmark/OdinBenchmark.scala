@@ -12,9 +12,11 @@ class OdinBenchmark extends BenchmarkBase {
   private val inner: Logger[IO] =
     Logger.noop[IO]
 
+  private val message = "hello"
+
   @Benchmark
   def odinInfo(): Unit =
-    inner.info("test message").unsafeRunSync()
+    inner.info(message).unsafeRunSync()
 
   @Benchmark
   def odinConditionalSuccess(): Unit =
@@ -25,7 +27,10 @@ class OdinBenchmark extends BenchmarkBase {
         maxBufferSize = None
       )
       .use { logger =>
-        logger.info("test message")
+        logger.debug(message) *>
+          logger.debug(message) *>
+          logger.info(message) *>
+          logger.info("Request Completed")
       }
       .unsafeRunSync()
 
@@ -38,9 +43,10 @@ class OdinBenchmark extends BenchmarkBase {
         maxBufferSize = None
       )
       .use { logger =>
-        logger.info("test message") *>
-          IO.raiseError(new RuntimeException("test failure"))
+        logger.debug(message) *>
+          logger.debug(message) *>
+          logger.error(message) *>
+          logger.info("Request Completed")
       }
-      .attempt
       .unsafeRunSync()
 }
