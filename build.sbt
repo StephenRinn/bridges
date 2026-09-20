@@ -108,6 +108,7 @@ lazy val benchmark = project
     libraryDependencies ++= Seq(
       "org.typelevel" %% "log4cats-slf4j" % "2.8.0",
       "dev.scalafreaks" %% "odin-core" % "0.20.2",
+      "dev.scalafreaks" %% "odin-extras" % "0.20.2",
       "org.slf4j" % "slf4j-api" % "2.0.19",
       "ch.qos.logback" % "logback-classic" % "1.6.3",
     ),
