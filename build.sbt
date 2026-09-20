@@ -98,6 +98,13 @@ lazy val http4s = project
     ),
   )
 
+lazy val benchmark = project
+  .in(file("bridges-benchmark"))
+  .dependsOn(core)
+  .settings(
+    name := "bridges-benchmark"
+  )
+
 lazy val root = project
   .in(file("."))
   .aggregate(core, http4s, otel4s)
