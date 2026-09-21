@@ -20,30 +20,32 @@ import logEvent._
 import logger.config.BridgeLoggerConfig
 
 final case class IOStorage(
-    requestId: String,
-    correlationId: String,
-    values: Map[String, LogValue],
-    startTime: Option[Long],
-    endTime: Option[Long],
-    sampled: Option[Boolean],
-    rebuildLog: List[RebuildLog],
-    config: Option[BridgeLoggerConfig],
-)
+                            requestId: String,
+                            correlationId: String,
+                            values: Map[String, LogValue],
+                            startTime: Option[Long],
+                            endTime: Option[Long],
+                            sampled: Option[Boolean],
+                            rebuildLog: List[RebuildLog],
+                            config: Option[BridgeLoggerConfig],
+                            rebuildLogSize: Int = 0,
+                          )
 
 final case class RebuildLog(
-    log: LogEvent,
-)
+                             log: LogEvent,
+                           )
 
 object IOStorage {
   val empty: IOStorage =
     IOStorage(
-      "",
-      "",
-      Map[String, LogValue](),
-      None,
-      None,
+      requestId = "",
+      correlationId = "",
+      values = Map.empty[String, LogValue],
+      startTime = None,
+      endTime = None,
       sampled = None,
-      List[RebuildLog]().empty,
-      None,
+      rebuildLog = List.empty[RebuildLog],
+      config = None,
+      rebuildLogSize = 0,
     )
 }

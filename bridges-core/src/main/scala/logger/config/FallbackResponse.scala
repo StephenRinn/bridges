@@ -26,3 +26,7 @@ case class FallbackResponse(
     cancelFallback: (=> String, Map[String, LogValue], Seq[LogField]) => IO[Unit] = (_, _, _) =>
       IO.unit,
 )
+
+object FallbackResponse {
+  val noop: FallbackResponse = FallbackResponse()
+}

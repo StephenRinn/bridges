@@ -26,9 +26,9 @@ import logEvent.ToLogValue
 import logger.config.BridgeLoggerConfig
 
 final class ContextOperations(
-    private val local: IOLocal[IOStorage],
-    private val maxBuffer: Int = 200,
-) {
+                               private val local: IOLocal[IOStorage],
+                               private val maxBuffer: Int = 200,
+                             ) {
   def modify(f: IOStorage => IOStorage): IO[Unit] = local.update(f)
 
   def clear: IO[Unit] = local.set(IOStorage.empty)
@@ -37,7 +37,7 @@ final class ContextOperations(
 
   def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId)) }
 
-  def updateFields(fields: LogField*): IO[Unit] = {
+  def updateFields(fields: LogField*): IO[IOStorage] = {
     updateValues(fields.iterator.map(field => field.key -> field.value()).toMap)
   }
 
@@ -48,10 +48,13 @@ final class ContextOperations(
     }
   }
 
-  def updateValues(updatedValues: Map[String, LogValue]): IO[Unit] = {
+  // Returns the storage *after* the update so callers that immediately need the current
+  // context (e.g. the `*UpdateContext` logging methods) can reuse it instead of paying for a
+  // second, separate `IOLocal.get` round trip.
+  def updateValues(updatedValues: Map[String, LogValue]): IO[IOStorage] = {
     local.modify { storage =>
-      val updated = storage.values ++ updatedValues
-      (storage.copy(values = updated), ())
+      val updated = storage.copy(values = storage.values ++ updatedValues)
+      (updated, updated)
     }
   }
 
@@ -59,20 +62,31 @@ final class ContextOperations(
     updateValue(key, ToLogValue[A].toLogValue(value))
   }
 
+  // `rebuildLogSize` is maintained incrementally so the common (below-capacity) path never has to
+  // walk the whole list just to answer "how big is this?" - a plain `List.size` check here would
+  // make every buffered log call in a request O(n), making a request that buffers n logs O(n^2)
+  // overall. Only once the buffer is actually at capacity do we pay the (bounded, O(maxBuffer))
+  // cost of trimming it.
   def updateRebuildLog(event: LogEvent): IO[Unit] = {
-    val modifiedEvent = event.toStoredLog
-    local.modify { storage =>
-      val updated = RebuildLog(modifiedEvent) :: storage.rebuildLog
-      if (updated.size <= maxBuffer) {
-        (storage.copy(rebuildLog = updated), ())
+    val modifiedEvent = RebuildLog(event.toStoredLog)
+    local.update { storage =>
+      if (storage.rebuildLogSize >= maxBuffer) {
+        // `storage.rebuildLog` is already exactly `maxBuffer` long (that's the invariant this
+        // method maintains), so the trimmed list is always exactly `maxBuffer` long too - no need
+        // to call `.size` again to find that out.
+        val updated = (modifiedEvent :: storage.rebuildLog).take(maxBuffer)
+        storage.copy(rebuildLog = updated, rebuildLogSize = maxBuffer)
       } else {
-        (storage.copy(rebuildLog = updated.take(maxBuffer)), ())
+        storage.copy(
+          rebuildLog = modifiedEvent :: storage.rebuildLog,
+          rebuildLogSize = storage.rebuildLogSize + 1,
+        )
       }
     }
   }
 
   def clearRebuildLogs: IO[Unit] = {
-    local.update(_.copy(rebuildLog = List[RebuildLog]().empty))
+    local.update(_.copy(rebuildLog = List.empty[RebuildLog], rebuildLogSize = 0))
   }
 
   def setSampled(sampled: Boolean): IO[Unit] = {
