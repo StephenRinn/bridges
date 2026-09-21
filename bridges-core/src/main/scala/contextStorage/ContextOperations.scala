@@ -62,7 +62,7 @@ final class ContextOperations(
   def updateRebuildLog(event: LogEvent): IO[Unit] = {
     val modifiedEvent = event.toStoredLog
     local.modify { storage =>
-      val updated = storage.rebuildLog :+ RebuildLog(modifiedEvent)
+      val updated = RebuildLog(modifiedEvent) :: storage.rebuildLog
       if (updated.size <= maxBuffer) {
         (storage.copy(rebuildLog = updated), ())
       } else {

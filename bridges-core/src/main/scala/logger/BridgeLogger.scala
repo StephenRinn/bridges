@@ -252,7 +252,7 @@ final class BridgeLoggerImpl private[logger] (
   }
 
   private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
-    rebuildLogs.map { rebuildLog =>
+    rebuildLogs.reverse.map { rebuildLog =>
       sink.log(rebuildLog.log)
     }
   }

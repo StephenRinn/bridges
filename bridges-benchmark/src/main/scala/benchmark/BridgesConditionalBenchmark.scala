@@ -111,8 +111,8 @@ class BridgesConditionalBenchmark extends BenchmarkBase {
     run {
       noBufferLogger.withRequest() {
         (1 to 25).foldLeft(IO.unit) { (acc, _) =>
-          acc >> logger.debug(message)
-        } >> logger.error(message)
+          acc >> noBufferLogger.debug(message)
+        } >> noBufferLogger.error(message)
       }()
     }
 
