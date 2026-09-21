@@ -19,17 +19,17 @@ package logger
 import benchmark.BenchmarkBase
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import logEvent.{LogEvent, LogLevel}
+import logEvent.LogEvent
+import logEvent.LogLevel
 import logSink.LogSink
 import org.openjdk.jmh.annotations._
-
 
 final class BridgesConditionalBenchmarkNoOpSink extends LogSink {
   override def log(event: LogEvent): IO[Unit] =
     IO.unit
 }
 
-class BridgesConditionalBenchmark extends BenchmarkBase{
+class BridgesConditionalBenchmark extends BenchmarkBase {
 
   private val sink = new BridgesConditionalBenchmarkNoOpSink
 
@@ -45,20 +45,30 @@ class BridgesConditionalBenchmark extends BenchmarkBase{
       .build(sink)
       .unsafeRunSync()
 
-  private val message = "hello"
+  private val noBufferLogger: BridgeLogger =
+    BridgeLogger
+      .builder()
+      .withMinLevel(LogLevel.Info)
+      .replayAllLogLevel(LogLevel.Error)
+      .duplicateEntriesOnBufferDump(false)
+      .sampleRate(1.0f)
+      .sampleBelowMinLevel(false)
+      .bufferBelowMinLevel(false)
+      .build(sink)
+      .unsafeRunSync()
 
+  private val message = "hello"
 
   private def run[A](fa: IO[A]): Unit =
     fa.unsafeRunSync()
 
   @Benchmark
   def bridgesWithRequestEmpty(): Unit =
-  run {
-    logger.withRequest(sampleRequest = Some(true)) {
-      IO.unit
-    }()
-  }
-
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        IO.unit
+      }()
+    }
 
   @Benchmark
   def bridgesWithRequestConditionalSuccess(): Unit =
@@ -94,5 +104,139 @@ class BridgesConditionalBenchmark extends BenchmarkBase{
       logger.debug("hello") >>
         logger.debug("hello") >>
         logger.error("hello")
+    }
+
+  @Benchmark
+  def bridgesWithRequestNoBuffer(): Unit =
+    run {
+      noBufferLogger.withRequest() {
+        (1 to 25).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        } >> logger.error(message)
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale10NoError(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 10).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        }
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale25NoError(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 25).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        }
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale50NoError(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 50).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        }
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale100NoError(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 100).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        }
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestNaturalSampling(): Unit =
+    run {
+      logger.withRequest() {
+        logger.debug(message) >>
+          logger.debug(message) >>
+          logger.info(message)
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale10(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 10).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        } >> logger.error(message)
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale25(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 25).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        } >> logger.error(message)
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale50(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 50).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        } >> logger.error(message)
+      }()
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScale100(): Unit =
+    run {
+      logger.withRequest(sampleRequest = Some(true)) {
+        (1 to 100).foldLeft(IO.unit) { (acc, _) =>
+          acc >> logger.debug(message)
+        } >> logger.error(message)
+      }()
+    }
+
+  private def noop: IO[Unit] = IO.unit
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScaleIOchain10(): Unit =
+    run {
+      (1 to 10).foldLeft(IO.unit) { (acc, _) =>
+        acc >> logger.debug(message)
+      }
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScaleIOchain25(): Unit =
+    run {
+      (1 to 25).foldLeft(IO.unit) { (acc, _) =>
+        acc >> logger.debug(message)
+      }
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScaleIOchain50(): Unit =
+    run {
+      (1 to 50).foldLeft(IO.unit) { (acc, _) =>
+        acc >> logger.debug(message)
+      }
+    }
+
+  @Benchmark
+  def bridgesWithRequestBufferReplayAtScaleIOchain100(): Unit =
+    run {
+      (1 to 100).foldLeft(IO.unit) { (acc, _) =>
+        acc >> logger.debug(message)
+      }
     }
 }

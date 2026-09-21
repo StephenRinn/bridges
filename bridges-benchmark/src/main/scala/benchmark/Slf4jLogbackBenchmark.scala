@@ -30,4 +30,8 @@ class Slf4jLogbackBenchmark extends BenchmarkBase {
   @Benchmark
   def slf4jLogbackInfo(): Unit =
     logger.info("test message")
+
+  @Benchmark
+  def slf4jLogbackDisabledDebug(): Unit =
+    logger.debug("test message")
 }

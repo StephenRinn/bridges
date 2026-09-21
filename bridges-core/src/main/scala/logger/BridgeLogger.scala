@@ -241,11 +241,11 @@ final class BridgeLoggerImpl private[logger] (
           for {
             _ <-
               if (config.duplicateEntriesOnBufferDump && buffer) {
-                contextOps.updateRebuildLog(param, param.level)
+                contextOps.updateRebuildLog(param)
               } else IO.unit
             _ <- fa(param)
           } yield ()
-        case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
+        case (_, _, true) => contextOps.updateRebuildLog(param)
         case _ => IO.unit
       }
     } yield ()
@@ -305,12 +305,13 @@ final class BridgeLoggerImpl private[logger] (
       msg: => String,
       fields: LogField*,
   ): IO[Unit] = {
-    log(level = Debug, message = msg, fields = fields).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
-    }
+    log(level = Debug, message = msg, fields = fields)
+//    log(level = Debug, message = msg, fields = fields).guaranteeCase {
+//      case Outcome.Succeeded(fa) => fa
+//      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
+//      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
+//      case _ => IO()
+//    }
   }
 
   /** Values are added to the context, not based on this log event only

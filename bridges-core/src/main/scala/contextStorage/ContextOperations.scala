@@ -59,14 +59,14 @@ final class ContextOperations(
     updateValue(key, ToLogValue[A].toLogValue(value))
   }
 
-  def updateRebuildLog(event: LogEvent, level: LogLevel): IO[Unit] = {
+  def updateRebuildLog(event: LogEvent): IO[Unit] = {
     val modifiedEvent = event.toStoredLog
     local.modify { storage =>
       val updated = storage.rebuildLog :+ RebuildLog(modifiedEvent)
       if (updated.size <= maxBuffer) {
         (storage.copy(rebuildLog = updated), ())
       } else {
-        (storage.copy(rebuildLog = updated.tail), ())
+        (storage.copy(rebuildLog = updated.take(maxBuffer)), ())
       }
     }
   }

@@ -2,7 +2,8 @@ package benchmark
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import ch.qos.logback.classic.{Level => LogbackLevel, Logger}
+import ch.qos.logback.classic.{Logger, Level => LogbackLevel}
+import jdk.jpackage.internal.Arguments.CLIOptions.context
 import org.openjdk.jmh.annotations._
 import org.slf4j.LoggerFactory
 import org.typelevel.log4cats.slf4j.Slf4jFactory
@@ -42,4 +43,10 @@ class Log4catsBenchmark extends BenchmarkBase {
   @Benchmark
   def log4catsDisabledDebug(): Unit =
     logger.debug("test message").unsafeRunSync()
+
+  private val context = Map("userId" -> "123", "operation" -> "benchmark")
+
+  @Benchmark
+  def log4catsInfoWithContext(): Unit =
+    logger.info(context)("test message").unsafeRunSync()
 }

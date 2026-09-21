@@ -3,6 +3,7 @@ package benchmark
 import cats.effect.unsafe.implicits.global
 import logger.BridgeLogger
 import logEvent.LogLevel._
+import logEvent.LogValue
 import org.openjdk.jmh.annotations._
 
 class BridgesBenchmark extends BenchmarkBase {
@@ -31,5 +32,15 @@ class BridgesBenchmark extends BenchmarkBase {
       "hello",
       "userId" -> "123",
       "operation" -> "benchmark",
+    ).unsafeRunSync()
+
+  @Benchmark
+  def enabledInfoUpdateContext(): Unit =
+    logger.infoUpdateContext(
+      "hello",
+      Map(
+        "userId" -> LogValue.StringValue("123"),
+        "operation" -> LogValue.StringValue("benchmark"),
+      ),
     ).unsafeRunSync()
 }
