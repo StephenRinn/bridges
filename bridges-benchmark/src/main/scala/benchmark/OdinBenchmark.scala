@@ -147,7 +147,11 @@ class OdinBenchmark extends BenchmarkBase {
     .unsafeRunSync()
 
   @Benchmark def odinConditionalBufferReplayAtScale100(): Unit = ConditionalLogger
-    .withConditional(inner = innerNoFormat, minLevelOnError = Level.Error, maxBufferSize = Some(100))
+    .withConditional(
+      inner = innerNoFormat,
+      minLevelOnError = Level.Error,
+      maxBufferSize = Some(100),
+    )
     .use { logger =>
       (1 to 100).foldLeft(IO.unit) { (acc, _) =>
         acc >> logger.debug(message)

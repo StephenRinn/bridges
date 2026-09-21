@@ -1,7 +1,12 @@
 package benchmark
 
-import ch.qos.logback.classic.{Level => LogbackLevel, Logger}
-import org.openjdk.jmh.annotations.{Benchmark, Level => JmhLevel, Setup, State, Scope}
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.{Level => LogbackLevel}
+import org.openjdk.jmh.annotations.Benchmark
+import org.openjdk.jmh.annotations.Scope
+import org.openjdk.jmh.annotations.Setup
+import org.openjdk.jmh.annotations.State
+import org.openjdk.jmh.annotations.{Level => JmhLevel}
 import org.slf4j.LoggerFactory
 
 @State(Scope.Thread)

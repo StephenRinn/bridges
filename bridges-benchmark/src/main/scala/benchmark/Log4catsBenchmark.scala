@@ -2,7 +2,8 @@ package benchmark
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import ch.qos.logback.classic.{Logger, Level => LogbackLevel}
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.{Level => LogbackLevel}
 import jdk.jpackage.internal.Arguments.CLIOptions.context
 import org.openjdk.jmh.annotations._
 import org.slf4j.LoggerFactory
@@ -32,8 +33,7 @@ class Log4catsBenchmark extends BenchmarkBase {
     underlyingLogger.setAdditive(false)
     underlyingLogger.addAppender(appender)
 
-    logger =
-      Slf4jFactory.create[IO].getLogger
+    logger = Slf4jFactory.create[IO].getLogger
   }
 
   @Benchmark

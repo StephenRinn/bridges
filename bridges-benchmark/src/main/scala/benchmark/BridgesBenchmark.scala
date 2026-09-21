@@ -1,9 +1,9 @@
 package benchmark
 
 import cats.effect.unsafe.implicits.global
-import logger.BridgeLogger
 import logEvent.LogLevel._
 import logEvent.LogValue
+import logger.BridgeLogger
 import org.openjdk.jmh.annotations._
 
 class BridgesBenchmark extends BenchmarkBase {
@@ -12,10 +12,13 @@ class BridgesBenchmark extends BenchmarkBase {
 
   @Setup(Level.Trial)
   def setup(): Unit = {
-    logger = BridgeLogger.builder(
-      minLevel = Info,
-      replayAllLogLevel = Warn,
-    ).build(NoOpBridgesSink).unsafeRunSync()
+    logger = BridgeLogger
+      .builder(
+        minLevel = Info,
+        replayAllLogLevel = Warn,
+      )
+      .build(NoOpBridgesSink)
+      .unsafeRunSync()
   }
 
   @Benchmark
@@ -28,19 +31,23 @@ class BridgesBenchmark extends BenchmarkBase {
 
   @Benchmark
   def enabledInfoWithFields(): Unit =
-    logger.info(
-      "hello",
-      "userId" -> "123",
-      "operation" -> "benchmark",
-    ).unsafeRunSync()
+    logger
+      .info(
+        "hello",
+        "userId" -> "123",
+        "operation" -> "benchmark",
+      )
+      .unsafeRunSync()
 
   @Benchmark
   def enabledInfoUpdateContext(): Unit =
-    logger.infoUpdateContext(
-      "hello",
-      Map(
-        "userId" -> LogValue.StringValue("123"),
-        "operation" -> LogValue.StringValue("benchmark"),
-      ),
-    ).unsafeRunSync()
+    logger
+      .infoUpdateContext(
+        "hello",
+        Map(
+          "userId" -> LogValue.StringValue("123"),
+          "operation" -> LogValue.StringValue("benchmark"),
+        ),
+      )
+      .unsafeRunSync()
 }

@@ -20,14 +20,14 @@ import contextStorage.IOStorage
 import contextStorage.RebuildLog
 
 case class LogEvent(
-                     level: LogLevel,
-                     message: String,
-                     timestamp: Long,
-                     context: IOStorage,
-                     attributes: Map[String, LogValue],
-                     logContext: Map[String, LogValue],
-                     throwable: Option[Throwable] = None,
-                   ) {
+    level: LogLevel,
+    message: String,
+    timestamp: Long,
+    context: IOStorage,
+    attributes: Map[String, LogValue],
+    logContext: Map[String, LogValue],
+    throwable: Option[Throwable] = None,
+) {
   def toStoredLog: LogEvent = {
     this.copy(context = context.copy(rebuildLog = List.empty[RebuildLog], rebuildLogSize = 0))
   }
@@ -41,13 +41,13 @@ case class LogEvent(
 
 object LogEvent {
   def attributes(
-                  values: (String, LogValue)*,
-                ): Map[String, LogValue] =
+      values: (String, LogValue)*,
+  ): Map[String, LogValue] =
     values.toMap
 
   def attribute[A: ToLogValue](
-                                key: String,
-                                value: A,
-                              ): (String, LogValue) =
+      key: String,
+      value: A,
+  ): (String, LogValue) =
     key -> ToLogValue[A].toLogValue(value)
 }
