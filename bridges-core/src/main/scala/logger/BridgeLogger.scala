@@ -93,6 +93,16 @@ final class BridgeLoggerImpl private[logger] (
 
   private val hasTraceContext = traceContextProvider ne TraceContextProvider.noop
 
+  private def fieldsToMap(fields: Seq[LogField]): Map[String,LogValue] = {
+    if (fields.isEmpty) Map.empty
+    else {
+      val builder = Map.newBuilder[String, LogValue]
+      builder.sizeHint(fields.size)
+      fields.foreach(f => builder += (f.key -> f.value()))
+      builder.result()
+    }
+  }
+
   private def toEvent(
       message: String,
       level: LogLevel,
@@ -100,6 +110,38 @@ final class BridgeLoggerImpl private[logger] (
       e: Option[Throwable] = None,
       values: Seq[LogField] = Seq.empty,
   ): IO[(LogEvent, IOStorage)] = {
+    val ctx = fieldsToMap(values)
+
+    if(!hasTraceContext) {
+      Clock[IO].realTime.map{ now =>
+        val event = LogEvent(
+          level = level,
+          message = message,
+          timestamp = now.toMillis,
+          context = storage,
+          attributes = Map.empty,
+          throwable = e,
+          logContext = ctx
+        )
+        (event, storage)
+      }
+    } else {
+      for {
+        now <- Clock[IO].realTime
+        attributes <- traceContextProvider.attributes
+      } yield {
+        val event = LogEvent(
+          level = level,
+          message = message,
+          timestamp = now.toMillis,
+          context = storage,
+          attributes = attributes,
+          throwable = e,
+          logContext = fieldsToMap(values)
+        )
+        (event, storage)
+      }
+    }
     for {
       now <- Clock[IO].realTime
       attributes <- if (hasTraceContext)
@@ -113,11 +155,7 @@ final class BridgeLoggerImpl private[logger] (
         context = storage,
         attributes = attributes,
         throwable = e,
-        logContext = if(values.isEmpty) {
-          Map.empty
-        }else {
-          values.iterator.map(f => (f.key, f.value())).toMap
-        }
+        logContext = fieldsToMap(values)
       )
     } yield (event, storage)
   }
@@ -139,8 +177,9 @@ final class BridgeLoggerImpl private[logger] (
     storage.sampled match {
       case Some(value) => IO.pure(value)
       case None =>
-        val sampled = Random.between(0.0f, 1.0f) < config.sampleRate
         for {
+          sampled_ <- cats.effect.std.Random[IO].betweenFloat(0.0f, 1.0f)
+          sampled = sampled_ < config.sampleRate
           _ <- contextOps.setSampled(sampled)
         } yield sampled
     }
@@ -429,7 +468,13 @@ final class BridgeLoggerImpl private[logger] (
         }
         val updatedValues =
           if (fields.isEmpty) storage.values
-          else storage.values ++ fields.iterator.map(field => field.key -> field.value()).toMap
+          else {
+            val builder = Map.newBuilder[String, LogValue]
+            builder.sizeHint(fields.size + storage.values.size)
+            builder ++= storage.values
+            fields.foreach( f => builder += (f.key -> f.value()))
+            builder.result()
+          }
         storage.copy(
           requestId = rid,
           correlationId = cid,
@@ -471,7 +516,7 @@ final class BridgeLoggerImpl private[logger] (
       }
     } yield result
     for {
-      results <- (ioStorage.set(IOStorage.empty) >> contextSetup >> faGuarantee)
+      results <- (contextSetup >> faGuarantee)
         .guarantee(ioStorage.set(oldStorage))
     } yield results
   }
