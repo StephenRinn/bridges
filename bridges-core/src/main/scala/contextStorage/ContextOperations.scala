@@ -39,7 +39,7 @@ final class ContextOperations(
   def setRequest(requestId: String): IO[Unit] = { local.update(_.copy(requestId = requestId)) }
 
   def updateFields(fields: LogField*): IO[IOStorage] = {
-    updateValues(fields.iterator.map(field => field.key -> field.value()).toMap)
+    updateValues(fields.iterator.map(field => field.key -> field.value).toMap)
   }
 
   def updateValue(key: String, value: LogValue): IO[Unit] = {
@@ -49,9 +49,6 @@ final class ContextOperations(
     }
   }
 
-  // Returns the storage *after* the update so callers that immediately need the current
-  // context (e.g. the `*UpdateContext` logging methods) can reuse it instead of paying for a
-  // second, separate `IOLocal.get` round trip.
   def updateValues(updatedValues: Map[String, LogValue]): IO[IOStorage] = {
     local.modify { storage =>
       val updated = storage.copy(values = storage.values ++ updatedValues)
@@ -63,16 +60,11 @@ final class ContextOperations(
     updateValue(key, ToLogValue[A].toLogValue(value))
   }
 
-  // `rebuildLogSize` is maintained incrementally so the common (below-capacity) path never has to
-  // walk the whole list just to answer "how big is this?" - a plain `List.size` check here would
-  // make every buffered log call in a request O(n), making a request that buffers n logs O(n^2)
-  // overall. Only once the buffer is actually at capacity do we pay the (bounded, O(maxBuffer))
-  // cost of trimming it.
   def updateRebuildLog(event: LogEvent): IO[Unit] = {
     val modifiedEvent = RebuildLog(event.toStoredLog)
     local.update { storage =>
       if (storage.rebuildLogSize >= maxBuffer) {
-        val updated = storage.rebuildLog.append(modifiedEvent).drop(1)
+        val updated = storage.rebuildLog.drop(1).append(modifiedEvent)
         storage.copy(rebuildLog = updated, rebuildLogSize = maxBuffer)
       } else {
         storage.copy(

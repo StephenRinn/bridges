@@ -110,65 +110,61 @@ final class BridgeLoggerImpl private[logger] (
 
   private val emptyFields: Seq[LogField] = Nil
 
-  private val pureEmptyStorage: IO[IOStorage] = IO.pure(IOStorage.empty)
-
   private def fieldsToMap(fields: Seq[LogField]): Map[String, LogValue] = {
-    fields.length match {
-      case 0 => Map.empty
-      case 1 =>
-        val f = fields.head
-        Map(f.key -> f.value())
-      case 2 =>
-        val f0 = fields.head
-        val f1 = fields(1)
-        Map(f0.key -> f0.value(), f1.key -> f1.value())
-      case n =>
+    if (fields.isEmpty) Map.empty
+    else {
+    fields match {
+      case Seq(f) =>
+        Map(f.key -> f.value)
+      case Seq(f0,f1) =>
+        Map(f0.key -> f0.value, f1.key -> f1.value)
+      case _ =>
         val builder = Map.newBuilder[String, LogValue]
-        builder.sizeHint(n)
-        fields.foreach(f => builder += (f.key -> f.value()))
+        builder.sizeHint(fields.size)
+        fields.foreach(f => builder += (f.key -> f.value))
         builder.result()
-    }
+    }}
   }
 
-  private def toEvent(
-      message: String,
-      level: LogLevel,
-      storage: IOStorage,
-      e: Option[Throwable] = None,
-      values: Seq[LogField] = Seq.empty,
-  ): IO[LogEvent] = {
-    val ctx = fieldsToMap(values)
-
-    if (!hasTraceContext) {
-      IO.delay {
-        val now = System.currentTimeMillis()
-        LogEvent(
-          level = level,
-          message = message,
-          timestamp = now,
-          context = storage,
-          attributes = Map.empty,
-          throwable = e,
-          logContext = ctx,
-        )
-      }
-    } else {
-      for {
-        now <- Clock[IO].realTime
-        attributes <- traceContextProvider.attributes
-      } yield {
-        LogEvent(
-          level = level,
-          message = message,
-          timestamp = now.toMillis,
-          context = storage,
-          attributes = attributes,
-          throwable = e,
-          logContext = ctx,
-        )
-      }
-    }
-  }
+//  private def toEvent(
+//      message: String,
+//      level: LogLevel,
+//      storage: IOStorage,
+//      e: Option[Throwable] = None,
+//      values: Seq[LogField] = Seq.empty,
+//  ): IO[LogEvent] = {
+//    val ctx = fieldsToMap(values)
+//
+//    if (!hasTraceContext) {
+//      IO.delay {
+//        val now = System.currentTimeMillis()
+//        LogEvent(
+//          level = level,
+//          message = message,
+//          timestamp = now,
+//          context = storage,
+//          attributes = Map.empty,
+//          throwable = e,
+//          logContext = ctx,
+//        )
+//      }
+//    } else {
+//      for {
+//        now <- Clock[IO].realTime
+//        attributes <- traceContextProvider.attributes
+//      } yield {
+//        LogEvent(
+//          level = level,
+//          message = message,
+//          timestamp = now.toMillis,
+//          context = storage,
+//          attributes = attributes,
+//          throwable = e,
+//          logContext = ctx,
+//        )
+//      }
+//    }
+//  }
 
   private def rebuildAndPrint(
       param: LogEvent,
@@ -272,12 +268,11 @@ final class BridgeLoggerImpl private[logger] (
         evaluateLog(param = event, storage = storage, fa = sink.log, config = config)
       } else {
         for {
-          now <- Clock[IO].realTime
           attributes <- traceContextProvider.attributes
           event = LogEvent(
             level = level,
             message = evaluatedMsg,
-            timestamp = now.toMillis,
+            timestamp = System.currentTimeMillis(),
             context = storage,
             attributes = attributes,
             throwable = throwable,
