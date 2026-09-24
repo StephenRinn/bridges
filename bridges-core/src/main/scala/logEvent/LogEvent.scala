@@ -16,6 +16,7 @@
 
 package logEvent
 
+import cats.data.Chain
 import contextStorage.IOStorage
 import contextStorage.RebuildLog
 
@@ -29,7 +30,7 @@ case class LogEvent(
     throwable: Option[Throwable] = None,
 ) {
   def toStoredLog: LogEvent = {
-    this.copy(context = context.copy(rebuildLog = List.empty[RebuildLog], rebuildLogSize = 0))
+    this.copy(context = context.copy(rebuildLog = Chain.empty[RebuildLog], rebuildLogSize = 0))
   }
 
   def formattedAttribute: String = {

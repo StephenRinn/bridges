@@ -16,6 +16,7 @@
 
 package contextStorage
 
+import cats.data.Chain
 import cats.effect.IO
 import cats.effect.IOLocal
 import logEvent.LogEvent
@@ -71,14 +72,11 @@ final class ContextOperations(
     val modifiedEvent = RebuildLog(event.toStoredLog)
     local.update { storage =>
       if (storage.rebuildLogSize >= maxBuffer) {
-        // `storage.rebuildLog` is already exactly `maxBuffer` long (that's the invariant this
-        // method maintains), so the trimmed list is always exactly `maxBuffer` long too - no need
-        // to call `.size` again to find that out.
-        val updated = (modifiedEvent :: storage.rebuildLog).take(maxBuffer)
+        val updated = storage.rebuildLog.append(modifiedEvent).drop(1)
         storage.copy(rebuildLog = updated, rebuildLogSize = maxBuffer)
       } else {
         storage.copy(
-          rebuildLog = modifiedEvent :: storage.rebuildLog,
+          rebuildLog = storage.rebuildLog.append(modifiedEvent),
           rebuildLogSize = storage.rebuildLogSize + 1,
         )
       }
@@ -86,7 +84,7 @@ final class ContextOperations(
   }
 
   def clearRebuildLogs: IO[Unit] = {
-    local.update(_.copy(rebuildLog = List.empty[RebuildLog], rebuildLogSize = 0))
+    local.update(_.copy(rebuildLog = Chain.empty[RebuildLog], rebuildLogSize = 0))
   }
 
   def setSampled(sampled: Boolean): IO[Unit] = {
