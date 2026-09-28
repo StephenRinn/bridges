@@ -24,8 +24,10 @@ trait TraceContextProvider {
 }
 
 object TraceContextProvider {
+  private val emptyAttributes: IO[Map[String, LogValue]] = IO.pure(Map.empty[String, LogValue])
+
   val noop: TraceContextProvider =
     new TraceContextProvider {
-      override def attributes: IO[Map[String, LogValue]] = IO.pure(Map[String, LogValue]().empty)
+      override def attributes: IO[Map[String, LogValue]] = emptyAttributes
     }
 }

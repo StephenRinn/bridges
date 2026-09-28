@@ -16,18 +16,20 @@
 
 package contextStorage
 
+import cats.data.Chain
 import logEvent._
 import logger.config.BridgeLoggerConfig
 
 final case class IOStorage(
-    requestId: String,
-    correlationId: String,
-    values: Map[String, LogValue],
-    startTime: Option[Long],
-    endTime: Option[Long],
-    sampled: Option[Boolean],
-    rebuildLog: List[RebuildLog],
-    config: Option[BridgeLoggerConfig],
+                            requestId: String,
+                            correlationId: String,
+                            values: Map[String, LogValue],
+                            startTime: Option[Long],
+                            endTime: Option[Long],
+                            sampled: Option[Boolean],
+                            rebuildLog: Chain[RebuildLog],
+                            config: Option[BridgeLoggerConfig],
+                            rebuildLogSize: Int = 0,
 )
 
 final case class RebuildLog(
@@ -37,13 +39,14 @@ final case class RebuildLog(
 object IOStorage {
   val empty: IOStorage =
     IOStorage(
-      "",
-      "",
-      Map[String, LogValue](),
-      None,
-      None,
+      requestId = "",
+      correlationId = "",
+      values = Map.empty[String, LogValue],
+      startTime = None,
+      endTime = None,
       sampled = None,
-      List[RebuildLog]().empty,
-      None,
+      rebuildLog = Chain.empty[RebuildLog],
+      config = None,
+      rebuildLogSize = 0,
     )
 }

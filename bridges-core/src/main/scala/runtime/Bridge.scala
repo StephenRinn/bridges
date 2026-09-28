@@ -80,7 +80,7 @@ object Bridge {
       msg: => String,
       values: Map[String, LogValue],
       fields: LogField*,
-  ): IO[Unit] = bridge.traceUpdateContext(msg, values, fields: _*)
+  ): IO[Unit] = withBridge(_.traceUpdateContext(msg, values, fields: _*))
 
   def debug(msg: => String, fields: LogField*): IO[Unit] = withBridge(_.debug(msg, fields: _*))
 

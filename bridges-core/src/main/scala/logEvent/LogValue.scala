@@ -16,31 +16,31 @@
 
 package logEvent
 
-trait LogValue
+sealed trait LogValue extends Any
 
 object LogValue {
 
   case object Null extends LogValue
 
-  final case class StringValue(value: String) extends LogValue {
+  final case class StringValue(value: String) extends AnyVal with LogValue {
     override def toString: String = value
   }
-  final case class BooleanValue(value: Boolean) extends LogValue {
+  final case class BooleanValue(value: Boolean) extends AnyVal with LogValue {
     override def toString: String = value.toString
   }
-  final case class IntValue(value: Int) extends LogValue {
+  final case class IntValue(value: Int) extends AnyVal with LogValue {
     override def toString: String = value.toString
   }
-  final case class LongValue(value: Long) extends LogValue {
+  final case class LongValue(value: Long) extends AnyVal with LogValue {
     override def toString: String = value.toString
   }
-  final case class DoubleValue(value: Double) extends LogValue {
+  final case class DoubleValue(value: Double) extends AnyVal with LogValue {
     override def toString: String = value.toString
   }
-  final case class ListValue(values: Vector[LogValue]) extends LogValue {
+  final case class ListValue(values: Vector[LogValue]) extends AnyVal with LogValue {
     override def toString: String = values.mkString("[", ", ", "]")
   }
-  final case class MapValue(values: Map[String, LogValue]) extends LogValue {
+  final case class MapValue(values: Map[String, LogValue]) extends AnyVal with LogValue {
     override def toString: String = values.toString
   }
   def obj(fields: (String, LogValue)*): LogValue = {

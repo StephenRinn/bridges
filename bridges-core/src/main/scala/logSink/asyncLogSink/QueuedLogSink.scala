@@ -142,10 +142,10 @@ object QueuedLogSink {
   }
 
   def createResource(
-                      logSink: LogSink,
-                      config: QueuedLogSinkConfig,
-                      policies: LogDeliveryPolicy*,
-                    ): Resource[IO, LogSink] = {
+      logSink: LogSink,
+      config: QueuedLogSinkConfig,
+      policies: LogDeliveryPolicy*,
+  ): Resource[IO, LogSink] = {
 
     for {
       queue <- Resource.eval(createQueue(config))

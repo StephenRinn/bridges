@@ -35,9 +35,9 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
         finalStorage <- logger.invokePrivate(getStorage())
         messages <- sink.messages
       } yield {
-        assertEquals(beforeStorage.rebuildLog.size, 0)
-        assertEquals(afterStorage.rebuildLog.size, 2)
-        assertEquals(finalStorage.rebuildLog.size, 0)
+        assertEquals(beforeStorage.rebuildLog.size, 0L)
+        assertEquals(afterStorage.rebuildLog.size, 2L)
+        assertEquals(finalStorage.rebuildLog.size, 0L)
         assertEquals(messages.size, 3)
         assert(messages.head.level == Debug)
       }
@@ -63,10 +63,10 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
         finalStorage <- logger.invokePrivate(getStorage())
         messages <- sink.messages
       } yield {
-        assertEquals(beforeStorage.rebuildLog.size, 0)
-        assertEquals(afterStorage.rebuildLog.size, 1)
-        assertEquals(infoStorage.rebuildLog.size, 1)
-        assertEquals(finalStorage.rebuildLog.size, 0)
+        assertEquals(beforeStorage.rebuildLog.size, 0L)
+        assertEquals(afterStorage.rebuildLog.size, 1L)
+        assertEquals(infoStorage.rebuildLog.size, 1L)
+        assertEquals(finalStorage.rebuildLog.size, 0L)
         assertEquals(messages.size, 4)
         assert(messages.head.level == Debug)
       }
@@ -97,10 +97,10 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
         messages <- sink.messages
       } yield {
         assertEquals(msg1.size, 1)
-        assertEquals(beforeStorage.rebuildLog.size, 0)
-        assertEquals(afterStorage.rebuildLog.size, 2)
-        assertEquals(infoStorage.rebuildLog.size, 3)
-        assertEquals(finalStorage.rebuildLog.size, 0)
+        assertEquals(beforeStorage.rebuildLog.size, 0L)
+        assertEquals(afterStorage.rebuildLog.size, 2L)
+        assertEquals(infoStorage.rebuildLog.size, 3L)
+        assertEquals(finalStorage.rebuildLog.size, 0L)
         assertEquals(messages.size, 6)
         assert(messages.head.level == Debug)
       }
@@ -118,8 +118,8 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
         finalStorage <- logger.invokePrivate(getStorage())
         messages <- sink.messages
       } yield {
-        assertEquals(beforeStorage.rebuildLog.size, 0)
-        assertEquals(finalStorage.rebuildLog.size, 3)
+        assertEquals(beforeStorage.rebuildLog.size, 0L)
+        assertEquals(finalStorage.rebuildLog.size, 3L)
         assertEquals(messages.size, 0)
       }
     }
@@ -138,8 +138,8 @@ class BridgeLoggerSpec extends CatsEffectSuite with PrivateMethodTester {
         finalStorage <- logger.invokePrivate(getStorage())
         messages <- sink.messages
       } yield {
-        assertEquals(beforeStorage.rebuildLog.size, 0)
-        assertEquals(finalStorage.rebuildLog.size, 2)
+        assertEquals(beforeStorage.rebuildLog.size, 0L)
+        assertEquals(finalStorage.rebuildLog.size, 2L)
         assertEquals(messages.size, 2)
       }
     }

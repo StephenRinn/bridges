@@ -15,11 +15,13 @@
  */
 package logger
 
+import cats.data.Chain
 import cats.effect.Clock
 import cats.effect.IO
 import cats.effect.IOLocal
 import cats.effect.LiftIO
 import cats.effect.kernel.Outcome
+import cats.implicits.toFoldableOps
 import contextStorage._
 import java.util.UUID
 import logEvent.LogEvent
@@ -31,20 +33,30 @@ import logSink.LogSink
 import logger.config.BridgeLoggerConfig
 import logger.config.FallbackResponse
 import logger.traceContext.TraceContextProvider
-import scala.math.Ordered.orderingToOrdered
-import scala.util.Random
 
 trait BridgeLogger {
+  def trace(msg: => String): IO[Unit]
+  def trace(msg: => String, field: LogField): IO[Unit]
   def trace(msg: => String, fields: LogField*): IO[Unit]
   def traceUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def debug(msg: => String): IO[Unit]
+  def debug(msg: => String, field: LogField): IO[Unit]
   def debug(msg: => String, fields: LogField*): IO[Unit]
   def debugUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def info(msg: => String): IO[Unit]
+  def info(msg: => String, field: LogField): IO[Unit]
   def info(msg: => String, fields: LogField*): IO[Unit]
   def infoUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def warn(msg: => String): IO[Unit]
+  def warn(msg: => String, field: LogField): IO[Unit]
   def warn(msg: => String, fields: LogField*): IO[Unit]
   def warnUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def error(msg: => String): IO[Unit]
+  def error(msg: => String, field: LogField): IO[Unit]
   def error(msg: => String, fields: LogField*): IO[Unit]
   def errorUpdateContext(msg: => String, values: Map[String, LogValue], fields: LogField*): IO[Unit]
+  def error(msg: => String, e: Throwable): IO[Unit]
+  def error(msg: => String, e: Throwable, field: LogField): IO[Unit]
   def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit]
   def errorUpdateContext(
       msg: => String,
@@ -84,82 +96,130 @@ final class BridgeLoggerImpl private[logger] (
     traceContextProvider: TraceContextProvider = TraceContextProvider.noop,
     sink: LogSink,
     bridgeLoggerConfig: BridgeLoggerConfig = BridgeLoggerConfig.default,
-    fallbackResponse: FallbackResponse = FallbackResponse(),
+    fallbackResponse: FallbackResponse = FallbackResponse.noop,
 ) extends BridgeLogger {
   private val contextOps: ContextOperations =
     new ContextOperations(ioStorage, bridgeLoggerConfig.bufferSize)
 
-  private def toEvent(
-      message: String,
-      level: LogLevel,
-      storage0: Option[IOStorage] = None,
-      e: Option[Throwable] = None,
-      values: Seq[LogField] = Seq[LogField]().empty,
-  ): IO[(LogEvent, IOStorage)] = {
-    for {
-      now <- Clock[IO].realTime
-      storage <-
-        if (storage0.isDefined) {
-          IO.pure(storage0.get)
-        } else { contextOps.get }
-      attributes <- traceContextProvider.attributes
-      event = LogEvent(
-        level = level,
-        message = message,
-        timestamp = now.toMillis,
-        context = storage,
-        attributes = attributes,
-        throwable = e,
-        logContext = values.iterator.map(field => field.key -> field.value()).toMap,
-      )
-    } yield (event, storage)
+  private val hasCustomFallback: Boolean = fallbackResponse ne FallbackResponse.noop
+
+  private val hasTraceContext = traceContextProvider ne TraceContextProvider.noop
+
+  private val minLevelShortCircuit =
+    !bridgeLoggerConfig.bufferBelowMinLevel && !bridgeLoggerConfig.sampleBelowMinLevel
+
+  private val emptyFields: Seq[LogField] = Nil
+
+  private def fieldsToMap(fields: Seq[LogField]): Map[String, LogValue] = {
+    if (fields.isEmpty) Map.empty
+    else {
+    fields match {
+      case Seq(f) =>
+        Map(f.key -> f.value)
+      case Seq(f0,f1) =>
+        Map(f0.key -> f0.value, f1.key -> f1.value)
+      case _ =>
+        val builder = Map.newBuilder[String, LogValue]
+        builder.sizeHint(fields.size)
+        fields.foreach(f => builder += (f.key -> f.value))
+        builder.result()
+    }}
   }
+
+//  private def toEvent(
+//      message: String,
+//      level: LogLevel,
+//      storage: IOStorage,
+//      e: Option[Throwable] = None,
+//      values: Seq[LogField] = Seq.empty,
+//  ): IO[LogEvent] = {
+//    val ctx = fieldsToMap(values)
+//
+//    if (!hasTraceContext) {
+//      IO.delay {
+//        val now = System.currentTimeMillis()
+//        LogEvent(
+//          level = level,
+//          message = message,
+//          timestamp = now,
+//          context = storage,
+//          attributes = Map.empty,
+//          throwable = e,
+//          logContext = ctx,
+//        )
+//      }
+//    } else {
+//      for {
+//        now <- Clock[IO].realTime
+//        attributes <- traceContextProvider.attributes
+//      } yield {
+//        LogEvent(
+//          level = level,
+//          message = message,
+//          timestamp = now.toMillis,
+//          context = storage,
+//          attributes = attributes,
+//          throwable = e,
+//          logContext = ctx,
+//        )
+//      }
+//    }
+//  }
 
   private def rebuildAndPrint(
       param: LogEvent,
       storage: IOStorage,
       fa: LogEvent => IO[Unit],
   ): IO[Unit] = {
-    val rebuildList = storage.rebuildLog
-    val ioList = rebuildRouter(rebuildList)
-    for {
-      _ <- ioList.sequence_
-      _ <- contextOps.clearRebuildLogs
-      _ <- fa(param)
-    } yield ()
+    rebuildRouter(storage.rebuildLog) >> contextOps.clearRebuildLogs >> fa(param)
+//    val rebuildList = storage.rebuildLog
+//    for {
+//      _ <- rebuildRouter(rebuildList)
+//      _ <- contextOps.clearRebuildLogs
+//      _ <- fa(param)
+//    } yield ()
   }
 
   private def sampleEligible(storage: IOStorage, config: BridgeLoggerConfig): IO[Boolean] = {
-    for {
-      sample <-
-        if (storage.sampled.isEmpty) {
-          val sampled = Random.between(0.0f, 1.0f) < config.sampleRate
-          for {
-            _ <- contextOps.setSampled(sampled)
-          } yield sampled
-        } else IO(storage.sampled.get)
-    } yield sample
+    storage.sampled match {
+      case Some(value) => IO.pure(value)
+      case None =>
+        IO.delay(java.util.concurrent.ThreadLocalRandom.current().nextFloat() < config.sampleRate)
+          .flatMap { sampled =>
+            contextOps.setSampled(sampled).as(sampled)
+          }
+    }
   }
+
+  private def resolveConfig(
+      singleLogConfig: Option[BridgeLoggerConfig],
+      storageConfig: Option[BridgeLoggerConfig],
+  ): BridgeLoggerConfig =
+    if (singleLogConfig.isDefined) singleLogConfig.get
+    else if (storageConfig.isDefined) storageConfig.get
+    else bridgeLoggerConfig
 
   private def evaluateToEvent(
       level: LogLevel,
       ioStorage: IOStorage,
-      singleLogConfig: Option[BridgeLoggerConfig] = None,
+      config: BridgeLoggerConfig,
   ): Boolean = {
-    val config = (singleLogConfig, ioStorage.config) match {
-      case (Some(logConfig), _) => logConfig
-      case (_, Some(ioLocalConfig)) => ioLocalConfig
-      case _ => bridgeLoggerConfig
-    }
-    val sampleCheck = ioStorage.sampled.contains(true) || ioStorage.sampled.isEmpty
-    level match {
-      case l if l >= config.minLevel => true
-      case l if l < config.minLevel && config.bufferBelowMinLevel => true
-      case l if l < config.minLevel && config.sampleBelowMinLevel =>
-        if (sampleCheck) {
-          true
-        } else false
-      case _ => false
+    val lvl = level.level
+    val minLvl = config.minLevel.level
+
+    if (lvl >= minLvl) {
+      true
+    } else if (!config.bufferBelowMinLevel && !config.sampleBelowMinLevel) {
+      false
+    } else if (config.bufferBelowMinLevel) {
+      true
+    } else if (config.sampleBelowMinLevel) {
+      ioStorage.sampled match {
+        case Some(value) => value
+        case None => true
+      }
+    } else {
+      false
     }
   }
 
@@ -170,30 +230,58 @@ final class BridgeLoggerImpl private[logger] (
       throwable: Option[Throwable] = None,
       singleLogConfig: Option[BridgeLoggerConfig] = None,
   ): IO[Unit] = {
-    for {
-      storage <- contextOps.get
-      passThrough = evaluateToEvent(level, storage, singleLogConfig)
+    if (
+      minLevelShortCircuit && singleLogConfig.isEmpty && bridgeLoggerConfig.minLevel.level > level.level
+    ) {
+      IO.unit
+    } else {
+      contextOps.get.flatMap { storage =>
+        logWithStorage(level, message, fields, storage, throwable, singleLogConfig)
+      }
+    }
+  }
 
-      _ <-
-        if (!passThrough) { IO.unit }
-        else {
-          for {
-            event <- toEvent(
-              message = message,
-              level = level,
-              storage0 = Some(storage),
-              e = throwable,
-              values = fields,
-            )
-            _ <- evaluateLog(
-              param = event._1,
-              storage = storage,
-              fa = sink.log,
-              singleLogConfig = singleLogConfig,
-            )
-          } yield ()
-        }
-    } yield ()
+  private def logWithStorage(
+      level: LogLevel,
+      message: => String,
+      fields: Seq[LogField],
+      storage: IOStorage,
+      throwable: Option[Throwable] = None,
+      singleLogConfig: Option[BridgeLoggerConfig] = None,
+  ): IO[Unit] = {
+    val config = resolveConfig(singleLogConfig, storage.config)
+    if (!evaluateToEvent(level, storage, config)) {
+      IO.unit
+    } else {
+      val evaluatedMsg = message
+      val ctx = fieldsToMap(fields)
+      if (!hasTraceContext) {
+        val event = LogEvent(
+          level = level,
+          message = evaluatedMsg,
+          timestamp = System.currentTimeMillis(),
+          context = storage,
+          attributes = Map.empty,
+          throwable = throwable,
+          logContext = ctx,
+        )
+        evaluateLog(param = event, storage = storage, fa = sink.log, config = config)
+      } else {
+        for {
+          attributes <- traceContextProvider.attributes
+          event = LogEvent(
+            level = level,
+            message = evaluatedMsg,
+            timestamp = System.currentTimeMillis(),
+            context = storage,
+            attributes = attributes,
+            throwable = throwable,
+            logContext = ctx,
+          )
+          res <- evaluateLog(param = event, storage = storage, fa = sink.log, config = config)
+        } yield res
+      }
+    }
   }
 
   private def emitEligible(
@@ -201,12 +289,13 @@ final class BridgeLoggerImpl private[logger] (
       sampled: Boolean,
       config: BridgeLoggerConfig,
   ): Boolean = {
-    (param.level > config.minLevel
-    || (sampled && (config.sampleBelowMinLevel || config.minLevel == param.level)))
+    val lvl = param.level.level
+    val minLvl = config.minLevel.level
+    lvl > minLvl || (sampled && (config.sampleBelowMinLevel || minLvl == lvl))
   }
 
   private def bufferDumpEligible(param: LogEvent, config: BridgeLoggerConfig): Boolean = {
-    param.level >= config.replayAllLogLevel
+    param.level.level >= config.replayAllLogLevel.level
   }
 
   private def bufferEligible(
@@ -214,53 +303,59 @@ final class BridgeLoggerImpl private[logger] (
       config: BridgeLoggerConfig,
       sampled: Boolean,
   ): Boolean = {
-    ((param.level < config.minLevel && config.bufferBelowMinLevel)
-    || (param.level >= config.minLevel && config.duplicateEntriesOnBufferDump)
-    || (param.level == config.minLevel && !sampled))
+    val lvl = param.level.level
+    val minLvl = config.minLevel.level
+    (lvl < minLvl && config.bufferBelowMinLevel) ||
+    (lvl >= minLvl && config.duplicateEntriesOnBufferDump) ||
+    (lvl == minLvl && !sampled)
   }
 
   private def evaluateLog(
       param: LogEvent,
       storage: IOStorage,
       fa: LogEvent => IO[Unit],
-      singleLogConfig: Option[BridgeLoggerConfig] = None,
+      config: BridgeLoggerConfig,
   ): IO[Unit] = {
-    val config = (singleLogConfig, storage.config) match {
-      case (Some(logConfig), _) => logConfig
-      case (_, Some(ioLocalConfig)) => ioLocalConfig
-      case _ => bridgeLoggerConfig
+    storage.sampled match {
+      case Some(sampled) =>
+        processEvaluatedLog(param, storage, fa, config, sampled)
+      case None =>
+        sampleEligible(storage, config).flatMap { sampled =>
+          processEvaluatedLog(param, storage, fa, config, sampled)
+        }
     }
-    for {
-      sampled <- sampleEligible(storage, config)
-      bufferDump = bufferDumpEligible(param, config)
-      emit = emitEligible(param, sampled, config)
-      buffer = bufferEligible(param, config, sampled)
-      _ <- (bufferDump, emit, buffer) match {
-        case (true, _, _) => rebuildAndPrint(param, storage, fa)
-        case (_, true, _) =>
-          for {
-            _ <-
-              if (config.duplicateEntriesOnBufferDump && buffer) {
-                contextOps.updateRebuildLog(param, param.level)
-              } else IO.unit
-            _ <- fa(param)
-          } yield ()
-        case (_, _, true) => contextOps.updateRebuildLog(param, param.level)
-        case _ => IO.unit
-      }
-    } yield ()
   }
 
-  private def rebuildRouter(rebuildLogs: List[RebuildLog]): List[IO[Unit]] = {
-    rebuildLogs.map { rebuildLog =>
-      sink.log(rebuildLog.log)
+  private def processEvaluatedLog(
+      param: LogEvent,
+      storage: IOStorage,
+      fa: LogEvent => IO[Unit],
+      config: BridgeLoggerConfig,
+      sampled: Boolean,
+  ): IO[Unit] = {
+    if (bufferDumpEligible(param, config)) {
+      rebuildAndPrint(param, storage, fa)
+    } else if (emitEligible(param, sampled, config)) {
+      if (config.duplicateEntriesOnBufferDump && bufferEligible(param, config, sampled)) {
+        contextOps.updateRebuildLog(param) >> fa(param)
+      } else {
+        fa(param)
+      }
+    } else if (bufferEligible(param, config, sampled)) {
+      contextOps.updateRebuildLog(param)
+    } else {
+      IO.unit
     }
+  }
+
+  private def rebuildRouter(rebuildLogs: Chain[RebuildLog]): IO[Unit] = {
+    rebuildLogs.traverseVoid(r => sink.log(r.log))
   }
 
   private def handleError(
       e: Throwable,
       msg: => String,
-      values: Map[String, LogValue] = Map[String, LogValue](),
+      values: Map[String, LogValue] = Map.empty[String, LogValue],
       fields: Seq[LogField],
   ): IO[Unit] = {
     fallbackResponse.errorFallback(e, msg, values, fields)
@@ -268,20 +363,39 @@ final class BridgeLoggerImpl private[logger] (
 
   private def handleCancel(
       msg: => String,
-      values: Map[String, LogValue] = Map[String, LogValue](),
+      values: Map[String, LogValue] = Map.empty[String, LogValue],
       fields: Seq[LogField],
   ): IO[Unit] = {
     fallbackResponse.cancelFallback(msg, values, fields)
   }
 
-  override def trace(msg: => String, fields: LogField*): IO[Unit] = {
-    log(Trace, msg, fields).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
+  @inline private def guarded[A](
+      io: IO[A],
+      msg: => String,
+      fields: Seq[LogField],
+      values: Map[String, LogValue] = Map.empty[String, LogValue],
+  ): IO[A] = {
+    if (!hasCustomFallback) {
+      io
+    } else {
+      io.guaranteeCase {
+        case Outcome.Succeeded(_) => IO.unit
+        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
+        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
+      }
     }
   }
+
+  override def trace(msg: => String): IO[Unit] =
+    guarded(log(Trace, msg, emptyFields), msg, emptyFields)
+
+  override def trace(msg: => String, field: LogField): IO[Unit] = {
+    val fields = field :: Nil
+    guarded(log(Trace, msg, fields), msg, fields)
+  }
+
+  override def trace(msg: => String, fields: LogField*): IO[Unit] =
+    guarded(log(Trace, msg, fields), msg, fields)
 
   /** Values are added to the context, not based on this log event only
     */
@@ -290,28 +404,24 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values).guaranteeCase {
-        case Outcome.Succeeded(fa) => fa
-        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
-        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
-        case _ => IO()
-      }
-      _ <- trace(msg = msg, fields = fields: _*)
+    val action = for {
+      storage <- contextOps.updateValues(values)
+      _ <- logWithStorage(Trace, msg, fields, storage)
     } yield ()
+    guarded(action, msg, fields, values)
   }
 
-  override def debug(
-      msg: => String,
-      fields: LogField*,
-  ): IO[Unit] = {
-    log(level = Debug, message = msg, fields = fields).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
-    }
+  override def debug(msg: => String): IO[Unit] = {
+    guarded(log(Debug, msg, emptyFields), msg, emptyFields)
   }
+
+  def debug(msg: => String, field: LogField): IO[Unit] = {
+    val fields = field :: Nil
+    guarded(log(Debug, msg, fields), msg, fields)
+  }
+
+  override def debug(msg: => String, fields: LogField*): IO[Unit] =
+    guarded(log(Debug, msg, fields), msg, fields)
 
   /** Values are added to the context, not based on this log event only
     */
@@ -320,28 +430,23 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values).guaranteeCase {
-        case Outcome.Succeeded(fa) => fa
-        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
-        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
-        case _ => IO()
-      }
-      _ <- debug(msg, fields: _*)
+    val action = for {
+      storage <- contextOps.updateValues(values)
+      _ <- logWithStorage(Debug, msg, fields, storage)
     } yield ()
+    guarded(action, msg, fields, values)
   }
 
-  override def info(
-      msg: => String,
-      fields: LogField*,
-  ): IO[Unit] = {
-    log(level = Info, message = msg, fields = fields).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
-    }
+  override def info(msg: => String): IO[Unit] =
+    guarded(log(Info, msg, emptyFields), msg, emptyFields)
+
+  override def info(msg: => String, field: LogField): IO[Unit] = {
+    val fields = field :: Nil
+    guarded(log(Info, msg, fields), msg, fields)
   }
+
+  override def info(msg: => String, fields: LogField*): IO[Unit] =
+    guarded(log(Info, msg, fields), msg, fields)
 
   /** Values are added to the context, not based on this log event only
     */
@@ -350,25 +455,23 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values).guaranteeCase {
-        case Outcome.Succeeded(fa) => fa
-        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
-        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
-        case _ => IO()
-      }
-      _ <- info(msg, fields: _*)
+    val action = for {
+      storage <- contextOps.updateValues(values)
+      _ <- logWithStorage(Info, msg, fields, storage)
     } yield ()
+    guarded(action, msg, fields, values)
   }
 
-  override def warn(msg: => String, fields: LogField*): IO[Unit] = {
-    log(level = Warn, message = msg, fields = fields).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
-    }
+  override def warn(msg: => String): IO[Unit] =
+    guarded(log(Warn, msg, emptyFields), msg, emptyFields)
+
+  override def warn(msg: => String, field: LogField): IO[Unit] = {
+    val fields = field :: Nil
+    guarded(log(Warn, msg, fields), msg, fields)
   }
+
+  override def warn(msg: => String, fields: LogField*): IO[Unit] =
+    guarded(log(Warn, msg, fields), msg, fields)
 
   /** Values are added to the context, not based on this log event only
     */
@@ -377,25 +480,23 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values).guaranteeCase {
-        case Outcome.Succeeded(fa) => fa
-        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
-        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
-        case _ => IO()
-      }
-      _ <- warn(msg, fields: _*)
+    val action = for {
+      storage <- contextOps.updateValues(values)
+      _ <- logWithStorage(Warn, msg, fields, storage)
     } yield ()
+    guarded(action, msg, fields, values)
   }
 
-  override def error(msg: => String, fields: LogField*): IO[Unit] = {
-    log(level = Error, message = msg, fields = fields).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
-    }
+  override def error(msg: => String): IO[Unit] =
+    guarded(log(Error, msg, emptyFields), msg, emptyFields)
+
+  override def error(msg: => String, field: LogField): IO[Unit] = {
+    val fields = field :: Nil
+    guarded(log(Error, msg, fields), msg, fields)
   }
+
+  override def error(msg: => String, fields: LogField*): IO[Unit] =
+    guarded(log(Error, msg, fields), msg, fields)
 
   /** Values are added to the context, not based on this log event only
     */
@@ -404,25 +505,23 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values).guaranteeCase {
-        case Outcome.Succeeded(fa) => fa
-        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
-        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
-        case _ => IO()
-      }
-      _ <- error(msg, fields: _*)
+    val action = for {
+      storage <- contextOps.updateValues(values)
+      _ <- logWithStorage(Error, msg, fields, storage)
     } yield ()
+    guarded(action, msg, fields, values)
   }
 
-  override def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] = {
-    log(level = Error, message = msg, fields = fields, throwable = Some(e)).guaranteeCase {
-      case Outcome.Succeeded(fa) => fa
-      case Outcome.Errored(e) => handleError(e = e, msg = msg, fields = fields)
-      case Outcome.Canceled() => handleCancel(msg = msg, fields = fields)
-      case _ => IO()
-    }
+  override def error(msg: => String, e: Throwable): IO[Unit] =
+    guarded(log(Error, msg, emptyFields, throwable = Some(e)), msg, emptyFields)
+
+  override def error(msg: => String, e: Throwable, field: LogField): IO[Unit] = {
+    val fields = field :: Nil
+    guarded(log(Error, msg, fields, throwable = Some(e)), msg, fields)
   }
+
+  override def error(msg: => String, e: Throwable, fields: LogField*): IO[Unit] =
+    guarded(log(Error, msg, fields, throwable = Some(e)), msg, fields)
 
   /** Values are added to the context, not based on this log event only
     */
@@ -432,15 +531,51 @@ final class BridgeLoggerImpl private[logger] (
       values: Map[String, LogValue],
       fields: LogField*,
   ): IO[Unit] = {
-    for {
-      _ <- contextOps.updateValues(values).guaranteeCase {
-        case Outcome.Succeeded(fa) => fa
-        case Outcome.Errored(e) => handleError(e = e, msg = msg, values = values, fields = fields)
-        case Outcome.Canceled() => handleCancel(msg = msg, values = values, fields = fields)
-        case _ => IO()
-      }
-      _ <- error(msg, e, fields: _*)
+    val action = for {
+      storage <- contextOps.updateValues(values)
+      _ <- logWithStorage(Error, msg, fields, storage, throwable = Some(e))
     } yield ()
+    guarded(action, msg, fields, values)
+  }
+
+  private def generateId(): String = {
+    val random = java.util.concurrent.ThreadLocalRandom.current()
+    new UUID(random.nextLong(), random.nextLong()).toString
+  }
+
+  private def prepareStorage(
+                              storage: IOStorage,
+                              sampleRequest: Option[Boolean],
+                              correlationId: Option[String],
+                              requestId: Option[String],
+                              fields: Seq[LogField],
+                              config: Option[BridgeLoggerConfig],
+                            ): IOStorage = {
+    val rid = requestId match {
+      case Some(value)                        => value
+      case None if storage.requestId.nonEmpty => storage.requestId
+      case None                               => generateId()
+    }
+    val cid = correlationId match {
+      case Some(value)                          => value
+      case None if storage.correlationId.nonEmpty => storage.correlationId
+      case None                                 => generateId()
+    }
+    val sampled = if (sampleRequest.isDefined) sampleRequest else storage.sampled
+    val now = System.currentTimeMillis()
+    val updatedValues =
+      if (fields.isEmpty) storage.values
+      else if (storage.values.isEmpty) fieldsToMap(fields)
+      else storage.values ++ fieldsToMap(fields)
+
+    storage.copy(
+      requestId = rid,
+      correlationId = cid,
+      values = updatedValues,
+      sampled = sampled,
+      config = config,
+      startTime = Some(now),
+    )
   }
 
   override def withRequest[A](
@@ -449,79 +584,32 @@ final class BridgeLoggerImpl private[logger] (
       requestId: Option[String] = None,
       composable: Boolean = true,
   )(fa: IO[A])(fields: LogField*)(implicit config: Option[BridgeLoggerConfig] = None): IO[A] = {
-    for {
-      storage <-
-        if (composable) {
-          contextOps.get
-        } else {
-          IO(IOStorage.empty)
-        }
-      updatedStorage = {
-        val rid = (storage.requestId, requestId) match {
-          case (_, Some(value)) => value
-          case ("", None) => UUID.randomUUID().toString
-          case (corrId, _) => corrId
-          case _ => UUID.randomUUID().toString
-        }
-
-        val cid = (storage.correlationId, correlationId) match {
-          case (_, Some(value)) => value
-          case ("", None) => UUID.randomUUID().toString
-          case (corrId, _) => corrId
-          case _ => UUID.randomUUID().toString
-        }
-        val sampled = if (sampleRequest.isDefined) {
-          sampleRequest
-        } else {
-          storage.sampled
-        }
-        val updatedValues =
-          storage.values ++ fields.iterator.map(field => field.key -> field.value()).toMap
-        storage.copy(
-          requestId = rid,
-          correlationId = cid,
-          values = updatedValues,
-          sampled = sampled,
-          config = config,
-        )
+    if (composable) {
+      contextOps.get.flatMap { storage =>
+        val updated = prepareStorage(storage, sampleRequest, correlationId, requestId, fields, config)
+        withRequestInternal(updated, storage)(fa)
       }
-      result <- withRequestInternal(updatedStorage)(fa)
-    } yield result
+    } else {
+      val updated = prepareStorage(IOStorage.empty, sampleRequest, correlationId, requestId, fields, config)
+      withRequestInternal(updated, IOStorage.empty)(fa)
+    }
   }
 
-  private def withRequestInternal[A](newStorage: IOStorage)(fa: IO[A]): IO[A] = {
-    val contextSetup = for {
-      _ <- ioStorage.set(newStorage)
-      start <- Clock[IO].monotonic
-      _ <- contextOps.markStart(start.toMillis)
-    } yield ()
-    val faGuarantee = for {
-      result <- fa.guaranteeCase {
-        case Outcome.Succeeded(_) =>
-          for {
-            end <- Clock[IO].monotonic
-            _ <- contextOps.markEnd(end.toMillis)
-            _ <- info("Request Completed").handleErrorWith(_ => IO())
-          } yield ()
-        case Outcome.Errored(e) =>
-          for {
-            end <- Clock[IO].monotonic
-            _ <- contextOps.markEnd(end.toMillis)
-            _ <- error("Request failed with exception", e).handleErrorWith(_ => IO())
-          } yield ()
-        case Outcome.Canceled() =>
-          for {
-            end <- Clock[IO].monotonic
-            _ <- contextOps.markEnd(end.toMillis)
-            _ <- warn("Request cancelled").handleErrorWith(_ => IO())
-          } yield ()
-      }
-    } yield result
-    for {
-      oldIOStorage <- contextOps.get
-      results <- (ioStorage.set(IOStorage.empty) >> contextSetup >> faGuarantee)
-        .guarantee(ioStorage.set(oldIOStorage))
-    } yield results
+  private def withRequestInternal[A](newStorage: IOStorage, oldStorage: IOStorage)(
+      fa: IO[A],
+  ): IO[A] = {
+    def complete(effect: LogField => IO[Unit]): IO[Unit] =
+      effect("endTime" -> System.currentTimeMillis())
+        .handleErrorWith(_ => IO.unit)
+
+    val faGuarantee = fa.guaranteeCase {
+      case Outcome.Succeeded(_) => complete(endTime => info("Request Completed", endTime))
+      case Outcome.Errored(e) =>
+        complete(endTime => error("Request failed with exception", e, endTime))
+      case Outcome.Canceled() => complete(endTime => warn("Request Cancelled", endTime))
+    }
+
+    (ioStorage.set(newStorage) >> faGuarantee).guarantee(ioStorage.set(oldStorage))
   }
 
   override def updateValues(key: String, value: LogValue): IO[Unit] =
@@ -540,37 +628,20 @@ final class BridgeLoggerImpl private[logger] (
       bufferBelowMinLevel: Option[Boolean] = None,
       bufferSize: Option[Int] = None,
   ): IO[Unit] = {
-    for {
-      storage <- contextOps.get
-      config = storage.config match {
-        case Some(value) =>
-          value.copy(
-            minLevel = minLevel.getOrElse(value.minLevel),
-            replayAllLogLevel = replayAllLogLevel.getOrElse(value.replayAllLogLevel),
-            duplicateEntriesOnBufferDump =
-              duplicateEntriesOnBufferDump.getOrElse(value.duplicateEntriesOnBufferDump),
-            sampleRate = sampleRate.getOrElse(value.sampleRate),
-            sampleBelowMinLevel = sampleBelowMinLevel.getOrElse(value.sampleBelowMinLevel),
-            bufferBelowMinLevel = bufferBelowMinLevel.getOrElse(value.bufferBelowMinLevel),
-            bufferSize = bufferSize.getOrElse(value.bufferSize),
-          )
-        case None =>
-          bridgeLoggerConfig.copy(
-            minLevel = minLevel.getOrElse(bridgeLoggerConfig.minLevel),
-            replayAllLogLevel = replayAllLogLevel.getOrElse(bridgeLoggerConfig.replayAllLogLevel),
-            duplicateEntriesOnBufferDump = duplicateEntriesOnBufferDump.getOrElse(
-              bridgeLoggerConfig.duplicateEntriesOnBufferDump,
-            ),
-            sampleRate = sampleRate.getOrElse(bridgeLoggerConfig.sampleRate),
-            sampleBelowMinLevel =
-              sampleBelowMinLevel.getOrElse(bridgeLoggerConfig.sampleBelowMinLevel),
-            bufferBelowMinLevel =
-              bufferBelowMinLevel.getOrElse(bridgeLoggerConfig.bufferBelowMinLevel),
-            bufferSize = bufferSize.getOrElse(bridgeLoggerConfig.bufferSize),
-          )
-      }
-      _ <- contextOps.updateConfig(config)
-    } yield ()
+    contextOps.get.flatMap { storage =>
+      val base = storage.config.getOrElse(bridgeLoggerConfig)
+      val config = base.copy(
+        minLevel = minLevel.getOrElse(base.minLevel),
+        replayAllLogLevel = replayAllLogLevel.getOrElse(base.replayAllLogLevel),
+        duplicateEntriesOnBufferDump =
+          duplicateEntriesOnBufferDump.getOrElse(base.duplicateEntriesOnBufferDump),
+        sampleRate = sampleRate.getOrElse(base.sampleRate),
+        sampleBelowMinLevel = sampleBelowMinLevel.getOrElse(base.sampleBelowMinLevel),
+        bufferBelowMinLevel = bufferBelowMinLevel.getOrElse(base.bufferBelowMinLevel),
+        bufferSize = bufferSize.getOrElse(base.bufferSize),
+      )
+      contextOps.updateConfig(config)
+    }
   }
 
   private def getStorage: IO[IOStorage] = {
@@ -592,7 +663,7 @@ object BridgeLogger {
       sampleIncludesBelowMinLevel: Boolean = false,
       bufferMessagesBelowMinLevel: Boolean = false,
       logBufferSize: Int = 200,
-      fallbackResponse: FallbackResponse = FallbackResponse(),
+      fallbackResponse: FallbackResponse = FallbackResponse.noop,
   ) {
 
     /** Minimum level used as the sampling/buffering boundary.
@@ -680,6 +751,9 @@ object BridgeLogger {
           ioStorage = ioStorage,
           sink = sink,
           bridgeLoggerConfig = toBridgeLoggerConfig,
+          // Previously omitted, so `withFallback(...)` had no effect: every built logger silently
+          // used the default no-op fallback no matter what was configured on the builder.
+          fallbackResponse = this.fallbackResponse,
         )
       }
     }
